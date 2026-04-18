@@ -1,0 +1,5 @@
+{
+  "$schema": "./test-cases.schema.json",
+  "description": "Evaluation set for the manned-spaceflight Q&A agent. Categories: factual, multi-hop, out-of-scope, ambiguous, follow-up. Populated in Phase 5.",
+  "testCases": []
+}

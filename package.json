@@ -1,0 +1,32 @@
+{
+  "name": "qa-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Document Q&A Agent with RAG, streaming citations, and an evaluation harness — Tappz AI Engineer take-home.",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "build:packages": "pnpm --filter \"./packages/*\" build",
+    "dev": "pnpm build:packages && pnpm run --parallel --filter \"./packages/*\" --filter \"./apps/*\" dev",
+    "dev:api": "pnpm build:packages && pnpm --filter @qa/api dev",
+    "dev:web": "pnpm build:packages && pnpm --filter @qa/web dev",
+    "build": "pnpm run --recursive build",
+    "typecheck": "pnpm run --recursive typecheck",
+    "lint": "pnpm run --recursive lint",
+    "ingest": "pnpm build:packages && tsx scripts/ingest.ts",
+    "ingest:force": "pnpm build:packages && tsx scripts/ingest.ts --force",
+    "fetch-corpus": "pnpm build:packages && tsx scripts/fetch-corpus.ts",
+    "evaluate": "pnpm build:packages && tsx scripts/evaluate.ts",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v && docker compose up -d",
+    "clean": "pnpm run --recursive clean && rm -rf node_modules .turbo"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
