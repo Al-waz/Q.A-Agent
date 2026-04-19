@@ -1,20 +1,31 @@
 /**
- * Ingestion entrypoint: reads `data/corpus/**` → chunks (512 tok / 64 overlap) →
- * embeds via Voyage (`voyage-4`) → upserts into Weaviate `DocumentChunk`.
+ * `pnpm ingest` — full ingestion pipeline end-to-end.
  *
- * Phase 2 wires this to the real chunker / embedder / vector store. The
- * `--force` flag will call `vectorStore.reset()` before reinsertion.
+ * Reads cached corpus files from `data/corpus/`, chunks them, embeds each
+ * chunk via Jina, and upserts into Weaviate. Shares the exact service
+ * implementations used by the runtime API via `createIngestionContext`.
  *
- * For Phase 1 this is a placeholder so `pnpm ingest` resolves.
+ * Flags: `--force` wipes the collection before re-ingesting.
  */
 
-async function main(): Promise<void> {
+import "../apps/api/src/env-loader.js";
+import { createIngestionContext } from "../apps/api/src/ingestion/bootstrap.js";
+import { IngestionService } from "../apps/api/src/ingestion/ingestion.service.js";
+
+async function run(): Promise<void> {
   const force = process.argv.includes("--force");
-  console.log(`[ingest] not implemented yet — arrives in Phase 2 (force=${force}).`);
-  console.log("[ingest] pipeline: corpus → chunker → Voyage embedder → Weaviate upsert.");
+  const app = await createIngestionContext();
+
+  try {
+    const ingestion = app.get(IngestionService);
+    const report = await ingestion.run({ force });
+    console.log("\n[ingest] report:", report);
+  } finally {
+    await app.close();
+  }
 }
 
-main().catch((err: unknown) => {
+run().catch((err: unknown) => {
   console.error("[ingest] failed:", err);
   process.exit(1);
 });

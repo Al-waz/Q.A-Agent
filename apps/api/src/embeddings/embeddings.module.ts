@@ -1,15 +1,15 @@
 import { Module } from "@nestjs/common";
 import { EMBEDDER } from "./interfaces/embedder.interface.js";
-import { VoyageEmbedder } from "./voyage.embedder.js";
+import { JinaEmbedder } from "./jina.embedder.js";
 
 @Module({
   providers: [
-    VoyageEmbedder,
+    JinaEmbedder,
     {
       provide: EMBEDDER,
-      useExisting: VoyageEmbedder,
+      useExisting: JinaEmbedder,
     },
   ],
-  exports: [EMBEDDER, VoyageEmbedder],
+  exports: [EMBEDDER, JinaEmbedder],
 })
 export class EmbeddingsModule {}

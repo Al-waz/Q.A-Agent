@@ -1,15 +1,15 @@
 import { Module } from "@nestjs/common";
 import { RERANKER } from "../interfaces/reranker.interface.js";
-import { VoyageRerankerService } from "./voyage-reranker.service.js";
+import { JinaRerankerService } from "./jina-reranker.service.js";
 
 @Module({
   providers: [
-    VoyageRerankerService,
+    JinaRerankerService,
     {
       provide: RERANKER,
-      useExisting: VoyageRerankerService,
+      useExisting: JinaRerankerService,
     },
   ],
-  exports: [RERANKER, VoyageRerankerService],
+  exports: [RERANKER, JinaRerankerService],
 })
 export class RerankerModule {}

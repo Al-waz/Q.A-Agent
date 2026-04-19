@@ -1,19 +1,31 @@
 /**
- * Fetches the manned-spaceflight corpus from Wikipedia into `data/corpus/`.
+ * `pnpm fetch-corpus` — populates `data/corpus/` from Wikipedia.
  *
- * Phase 2 will wire this up: iterate `corpus.manifest.ts` → hit Wikipedia REST
- * summary + HTML endpoints → strip navboxes/refs → write `<slug>.md` per page,
- * partitioned by category (missions | astronauts | spacecraft).
+ * Re-uses the WikiFetcherService wired inside IngestionModule so the exact
+ * same code runs in scripts and at runtime. Bootstrapping goes through
+ * `apps/api/src/ingestion/bootstrap.ts` so all bare imports resolve via
+ * apps/api's node_modules — see that file's docblock for the pnpm rationale.
  *
- * For Phase 1 this is a placeholder entrypoint so `pnpm fetch-corpus` resolves.
+ * Flags: `--force` re-fetches articles even if cached files already exist.
  */
 
-async function main(): Promise<void> {
-  console.log("[fetch-corpus] not implemented yet — arrives in Phase 2 (corpus & ingestion).");
-  console.log("[fetch-corpus] target: Wikipedia → data/corpus/{missions,astronauts,spacecraft}/*.md");
+import "../apps/api/src/env-loader.js";
+import { createIngestionContext } from "../apps/api/src/ingestion/bootstrap.js";
+import { WikiFetcherService } from "../apps/api/src/ingestion/wiki-fetcher.service.js";
+
+async function run(): Promise<void> {
+  const force = process.argv.includes("--force");
+  const app = await createIngestionContext();
+
+  try {
+    const fetcher = app.get(WikiFetcherService);
+    await fetcher.fetchAll({ force });
+  } finally {
+    await app.close();
+  }
 }
 
-main().catch((err: unknown) => {
+run().catch((err: unknown) => {
   console.error("[fetch-corpus] failed:", err);
   process.exit(1);
 });

@@ -18,14 +18,15 @@ export const EnvSchema = z.object({
   OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
   JUDGE_MODEL: z.string().default("qwen/qwen3.6-plus-preview:free"),
 
-  // Voyage
-  VOYAGE_API_KEY: z.string().min(1, "VOYAGE_API_KEY is required"),
-  VOYAGE_EMBEDDING_MODEL: z.string().default("voyage-4"),
-  VOYAGE_RERANKER_MODEL: z.string().default("rerank-2.5-lite"),
+  // Jina (embeddings + reranker share the same free-tier token pool)
+  JINA_API_KEY: z.string().min(1, "JINA_API_KEY is required"),
+  JINA_EMBEDDING_MODEL: z.string().default("jina-embeddings-v3"),
+  JINA_RERANKER_MODEL: z.string().default("jina-reranker-v2-base-multilingual"),
 
   // Weaviate
   WEAVIATE_HOST: z.string().default("localhost"),
   WEAVIATE_PORT: z.coerce.number().int().positive().default(8080),
+  WEAVIATE_GRPC_PORT: z.coerce.number().int().positive().default(50051),
   WEAVIATE_SCHEME: z.enum(["http", "https"]).default("http"),
   WEAVIATE_COLLECTION: z.string().default("DocumentChunk"),
 
@@ -34,9 +35,17 @@ export const EnvSchema = z.object({
   RETRIEVAL_FINAL_K: z.coerce.number().int().positive().default(5),
   HYBRID_ALPHA: z.coerce.number().min(0).max(1).default(0.5),
 
-  // Chunking
+  // Chunking (semantic strategy: sentence-level splits with embedding-similarity
+  // boundary detection, section-header prefixing, and Jina native late chunking)
   CHUNK_SIZE_TOKENS: z.coerce.number().int().positive().default(512),
   CHUNK_OVERLAP_TOKENS: z.coerce.number().int().nonnegative().default(64),
+  // Cosine-similarity threshold at which the semantic chunker inserts a
+  // boundary between adjacent sentences. Lower → more (smaller) chunks.
+  // 0.70-0.80 works well for expository prose; 0.75 is a safe default.
+  SEMANTIC_SIMILARITY_THRESHOLD: z.coerce.number().min(0).max(1).default(0.75),
+  // When true, the Jina embed call receives `late_chunking: true` so chunk
+  // vectors carry full-document context via token-level pooling.
+  JINA_LATE_CHUNKING: booleanString.default("true"),
 
   // Feature flags
   ENABLE_RERANKER: booleanString.default("true"),

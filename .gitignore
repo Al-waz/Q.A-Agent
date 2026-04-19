@@ -34,6 +34,9 @@ coverage/
 # Weaviate persistence (Docker volume is named, but guard anyway)
 weaviate_data/
 
+# Fetched Wikipedia corpus — reproducible via `pnpm fetch-corpus`
+data/corpus/
+
 # Eval run artifacts (keep final results/ but not scratch)
 eval/results/scratch-*
 

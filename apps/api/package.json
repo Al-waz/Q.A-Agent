@@ -26,7 +26,6 @@
     "pino-pretty": "^11.3.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "voyageai": "^0.0.4",
     "weaviate-client": "^3.2.5",
     "zod": "^3.23.8"
   },

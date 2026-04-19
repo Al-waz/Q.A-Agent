@@ -7,6 +7,13 @@ export const ChunkMetadataSchema = z.object({
   sourceTitle: z.string().min(1),
   sourceType: SourceTypeSchema,
   chunkIndex: z.number().int().nonnegative(),
+  /**
+   * Dotted section path within the article (e.g. "Mission > Lunar descent").
+   * `null` when the chunk comes from the article preamble / before the first
+   * header. Used for both retrieval signal (prepended to the embedding input)
+   * and citation display in the UI.
+   */
+  section: z.string().nullable(),
   text: z.string().min(1),
 });
 export type ChunkMetadata = z.infer<typeof ChunkMetadataSchema>;
