@@ -10,7 +10,7 @@ export class HealthController {
     return {
       ok: true,
       env: this.config.env.NODE_ENV,
-      model: this.config.env.OPENROUTER_MODEL,
+      model: this.config.env.LLM_MODEL,
       collection: this.config.env.WEAVIATE_COLLECTION,
     };
   }

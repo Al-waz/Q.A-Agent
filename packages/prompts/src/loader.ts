@@ -1,9 +1,18 @@
 import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+/**
+ * Resolve prompts against the package's `src/` directory so the loader works
+ * regardless of how the consumer runs (tsc-built `dist/loader.js`, or `tsx`
+ * directly from `src/loader.ts`). `tsc` does not copy `.md` assets into dist,
+ * and we don't want a separate build step just for that — reading from src
+ * keeps the prompts package "source is canonical" and avoids drift.
+ */
+const PROMPTS_DIR = basename(__dirname) === "dist" ? join(__dirname, "..", "src") : __dirname;
 
 export type PromptCategory = "system" | "fewshots" | "guardrails";
 
@@ -19,7 +28,7 @@ export interface PromptTemplate {
  * inlined in service code. Templates are interpolated via `render()`.
  */
 export async function loadPrompt(category: PromptCategory, name: string): Promise<PromptTemplate> {
-  const path = join(__dirname, category, `${name}.md`);
+  const path = join(PROMPTS_DIR, category, `${name}.md`);
   const body = await readFile(path, "utf-8");
   return { category, name, body };
 }

@@ -1,24 +1,21 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
-import type { ChatRequest } from "@qa/schemas";
+import type { ChatMessage, ChatRequest, ChatStreamEvent, ScoredChunk } from "@qa/schemas";
 import { ConfigService } from "../common/config/config.service.js";
 import { SessionService } from "../session/session.service.js";
 import { RetrievalService } from "../retrieval/retrieval.service.js";
 import { GenerationService } from "../generation/generation.service.js";
-import { QueryRewriterService } from "../generation/query-rewriter/query-rewriter.service.js";
 
 /**
- * Orchestrates a single chat turn:
+ * Orchestrates one chat turn end-to-end:
  *   1. Load session history (sliding window).
- *   2. (Bonus) Rewrite query with history for a standalone retrieval query.
- *   3. Retrieve top-K via hybrid search + optional rerank.
- *   4. Build prompt and stream generation.
- *   5. Emit SSE events on FastifyReply.raw: retrieved → token* → citations → done.
- *   6. Persist the turn to session memory.
+ *   2. Retrieve top-K chunks (hybrid search + rerank).
+ *   3. Stream SSE events on `reply.raw`: retrieved → token* → citations → done.
+ *   4. Persist the turn to session memory after the stream closes.
  *
- * Phase 3 implements steps 3–5 (vector retrieval, generation, citations).
- * Phase 4 layers on session + prompts polish + mid-stream error handling.
- * Phase 6 turns on query rewriting, reranking, hybrid search, tool use.
+ * Errors mid-stream are surfaced as an `error` SSE event so the client can
+ * render a toast without a broken connection. Query rewriting and tool-use
+ * land in Phase 6 behind their feature flags.
  */
 @Injectable()
 export class ChatService {
@@ -29,10 +26,85 @@ export class ChatService {
     private readonly sessions: SessionService,
     private readonly retrieval: RetrievalService,
     private readonly generation: GenerationService,
-    private readonly queryRewriter: QueryRewriterService,
   ) {}
 
-  handle(_body: ChatRequest, _reply: FastifyReply): Promise<void> {
-    throw new Error("ChatService.handle not implemented (Phase 3)");
+  async handle(body: ChatRequest, reply: FastifyReply): Promise<void> {
+    reply.raw.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+
+    const send = (event: ChatStreamEvent): void => {
+      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
+    let fullAnswer = "";
+    try {
+      const history = await this.sessions.getWindow(body.sessionId);
+      const chunks = await this.retrieval.retrieve({ query: body.message });
+
+      send({ type: "retrieved", chunks: chunks.map(toRetrievedPayload) });
+
+      if (chunks.length === 0) {
+        const apology = "I don't have information about that in the current corpus.";
+        send({ type: "token", delta: apology });
+        send({ type: "citations", citations: [] });
+        send({ type: "done" });
+        await this.persistTurn(body.sessionId, body.message, apology);
+        return;
+      }
+
+      const { textStream, citations } = await this.generation.generateStream({
+        userMessage: body.message,
+        history,
+        retrievedChunks: chunks,
+        userName: "there",
+        collectionName: this.config.env.WEAVIATE_COLLECTION,
+      });
+
+      for await (const delta of textStream) {
+        fullAnswer += delta;
+        send({ type: "token", delta });
+      }
+
+      const block = await citations;
+      send({ type: "citations", citations: block.citations });
+      send({ type: "done" });
+
+      await this.persistTurn(body.sessionId, body.message, fullAnswer);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      this.logger.error(`Chat turn failed: ${message}`);
+      send({ type: "error", message, recoverable: false });
+    } finally {
+      reply.raw.end();
+    }
   }
+
+  private async persistTurn(sessionId: string, userMessage: string, assistantMessage: string): Promise<void> {
+    const now = new Date().toISOString();
+    const messages: ChatMessage[] = [
+      { role: "user", content: userMessage, createdAt: now },
+      { role: "assistant", content: assistantMessage, createdAt: now },
+    ];
+    await this.sessions.append(sessionId, messages);
+  }
+}
+
+function toRetrievedPayload(chunk: ScoredChunk): {
+  id: string;
+  sourceTitle: string;
+  sourceType: string;
+  excerpt: string;
+  score: number;
+} {
+  return {
+    id: chunk.id,
+    sourceTitle: chunk.sourceTitle,
+    sourceType: chunk.sourceType,
+    excerpt: chunk.text.length > 280 ? `${chunk.text.slice(0, 280)}…` : chunk.text,
+    score: chunk.score,
+  };
 }

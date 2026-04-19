@@ -12,11 +12,13 @@ export const EnvSchema = z.object({
   API_PORT: z.coerce.number().int().positive().default(3001),
   API_HOST: z.string().default("0.0.0.0"),
 
-  // OpenRouter / LLM
-  OPENROUTER_API_KEY: z.string().min(1, "OPENROUTER_API_KEY is required"),
-  OPENROUTER_MODEL: z.string().default("qwen/qwen3.6-plus:free"),
-  OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
-  JUDGE_MODEL: z.string().default("qwen/qwen3.6-plus-preview:free"),
+  // LLM provider (OpenAI-compatible — works with Ollama Cloud, OpenRouter,
+  // local Ollama, direct OpenAI, etc. Just point LLM_BASE_URL at the endpoint
+  // and supply the matching LLM_API_KEY. Default is Ollama Cloud.
+  LLM_API_KEY: z.string().min(1, "LLM_API_KEY is required"),
+  LLM_MODEL: z.string().default("qwen3-coder:480b"),
+  LLM_BASE_URL: z.string().url().default("https://ollama.com/v1"),
+  JUDGE_MODEL: z.string().default("deepseek-v3.1:671b"),
 
   // Jina (embeddings + reranker share the same free-tier token pool)
   JINA_API_KEY: z.string().min(1, "JINA_API_KEY is required"),

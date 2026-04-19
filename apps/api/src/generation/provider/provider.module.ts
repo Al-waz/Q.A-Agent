@@ -1,15 +1,15 @@
 import { Module } from "@nestjs/common";
 import { LLM_PROVIDER } from "../interfaces/llm-provider.interface.js";
-import { OpenRouterProvider } from "./openrouter.provider.js";
+import { OpenAICompatProvider } from "./openai-compat.provider.js";
 
 @Module({
   providers: [
-    OpenRouterProvider,
+    OpenAICompatProvider,
     {
       provide: LLM_PROVIDER,
-      useExisting: OpenRouterProvider,
+      useExisting: OpenAICompatProvider,
     },
   ],
-  exports: [LLM_PROVIDER, OpenRouterProvider],
+  exports: [LLM_PROVIDER, OpenAICompatProvider],
 })
 export class ProviderModule {}
