@@ -30,8 +30,8 @@ export class RetrievalService {
   private readonly logger = new Logger(RetrievalService.name);
 
   constructor(
-    private readonly config: ConfigService,
-    private readonly embedder: JinaEmbedder,
+    @Inject(ConfigService) private readonly config: ConfigService,
+    @Inject(JinaEmbedder) private readonly embedder: JinaEmbedder,
     @Inject(VECTOR_STORE) private readonly vectorStore: IVectorStore,
     @Inject(RERANKER) private readonly reranker: IReranker,
   ) {}

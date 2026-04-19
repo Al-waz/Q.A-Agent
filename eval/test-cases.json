@@ -1,5 +1,159 @@
 {
-  "$schema": "./test-cases.schema.json",
-  "description": "Evaluation set for the manned-spaceflight Q&A agent. Categories: factual, multi-hop, out-of-scope, ambiguous, follow-up. Populated in Phase 5.",
-  "testCases": []
+  "description": "Evaluation set for the manned-spaceflight Q&A agent. Covers factual recall, multi-document synthesis, out-of-scope refusal, ambiguous queries, and multi-turn follow-ups. Designed to stress the RAG pipeline without relying on judge-model memorization.",
+  "testCases": [
+    {
+      "id": "factual-apollo11-commander",
+      "category": "factual",
+      "description": "Single-fact lookup from the Apollo 11 article.",
+      "turns": [
+        {
+          "question": "Who commanded the Apollo 11 mission?",
+          "expectedBehavior": "Name Neil Armstrong as the commander and cite the Apollo 11 article.",
+          "expectedKeywords": ["Neil Armstrong"]
+        }
+      ]
+    },
+    {
+      "id": "factual-apollo11-landing-date",
+      "category": "factual",
+      "description": "Date recall for the first Moon landing.",
+      "turns": [
+        {
+          "question": "On what date did Apollo 11 land on the Moon?",
+          "expectedBehavior": "State July 20, 1969 and cite the Apollo 11 source.",
+          "expectedKeywords": ["July 20, 1969"]
+        }
+      ]
+    },
+    {
+      "id": "factual-aldrin-role",
+      "category": "factual",
+      "description": "Role-in-crew lookup across the astronaut + mission articles.",
+      "turns": [
+        {
+          "question": "What role did Buzz Aldrin have on the Apollo 11 mission?",
+          "expectedBehavior": "Identify him as Lunar Module Pilot, with a citation.",
+          "expectedKeywords": ["Lunar Module Pilot"]
+        }
+      ]
+    },
+    {
+      "id": "factual-shepard-freedom7",
+      "category": "factual",
+      "description": "Early Mercury program — tests non-Apollo factual recall.",
+      "turns": [
+        {
+          "question": "Who was the first American in space, and on which mission?",
+          "expectedBehavior": "Name Alan Shepard and Freedom 7 (Mercury-Redstone 3), cited.",
+          "expectedKeywords": ["Alan Shepard", "Freedom 7"]
+        }
+      ]
+    },
+    {
+      "id": "multi-armstrong-gemini8",
+      "category": "multi-document",
+      "description": "Requires joining Armstrong's biography with the Gemini 8 mission article.",
+      "turns": [
+        {
+          "question": "Which Gemini mission did Neil Armstrong fly before Apollo 11, and who was his crewmate?",
+          "expectedBehavior": "Answer Gemini 8 with David Scott, drawing from both the Armstrong bio and the Gemini 8 article.",
+          "expectedKeywords": ["Gemini 8", "David Scott"]
+        }
+      ]
+    },
+    {
+      "id": "multi-collins-pre-apollo",
+      "category": "multi-document",
+      "description": "Multi-doc synthesis across Michael Collins and Gemini 10.",
+      "turns": [
+        {
+          "question": "What was Michael Collins's role on his first spaceflight, and on which mission did he fly it?",
+          "expectedBehavior": "Identify Collins as Pilot of Gemini 10, drawing from his bio and the Gemini 10 article.",
+          "expectedKeywords": ["Gemini 10", "Pilot"]
+        }
+      ]
+    },
+    {
+      "id": "multi-crew-dragon-comparison",
+      "category": "multi-document",
+      "description": "Compare two spacecraft — forces the agent to synthesize across articles.",
+      "turns": [
+        {
+          "question": "How does the crew capacity of Crew Dragon compare to the Apollo Command Module?",
+          "expectedBehavior": "State Crew Dragon's capacity (up to 7, typically 4) and Apollo CM (3), citing both spacecraft articles.",
+          "expectedKeywords": ["Crew Dragon", "Apollo"]
+        }
+      ]
+    },
+    {
+      "id": "oos-ceo-spacex",
+      "category": "out-of-scope",
+      "description": "Person/role not described in any corpus article — should refuse.",
+      "turns": [
+        {
+          "question": "Who is the current CEO of SpaceX?",
+          "expectedBehavior": "Refuse with the 'not in current corpus' guardrail. Do NOT speculate, even though the answer is common knowledge.",
+          "expectedKeywords": []
+        }
+      ]
+    },
+    {
+      "id": "oos-quantum-entanglement",
+      "category": "out-of-scope",
+      "description": "Entirely off-topic science question — should refuse cleanly.",
+      "turns": [
+        {
+          "question": "Can you explain quantum entanglement?",
+          "expectedBehavior": "Refuse — topic is not in the spaceflight corpus.",
+          "expectedKeywords": []
+        }
+      ]
+    },
+    {
+      "id": "ambig-first-mission",
+      "category": "ambiguous",
+      "description": "'First mission' is ambiguous (first crewed? first American? first to the Moon?).",
+      "turns": [
+        {
+          "question": "What was the first mission?",
+          "expectedBehavior": "Acknowledge the ambiguity (first to orbit, first American, first to the Moon, etc.) and either ask for clarification or cover the most likely interpretations with citations.",
+          "expectedKeywords": []
+        }
+      ]
+    },
+    {
+      "id": "followup-apollo-pilot",
+      "category": "follow-up",
+      "description": "Second turn relies on pronoun resolution against first-turn context.",
+      "turns": [
+        {
+          "question": "Who was the Command Module Pilot on Apollo 11?",
+          "expectedBehavior": "Name Michael Collins with a citation.",
+          "expectedKeywords": ["Michael Collins"]
+        },
+        {
+          "question": "Which Gemini mission did he fly before that?",
+          "expectedBehavior": "Resolve 'he' to Michael Collins and answer Gemini 10 with a citation. Must exercise session memory.",
+          "expectedKeywords": ["Gemini 10"]
+        }
+      ]
+    },
+    {
+      "id": "followup-shuttle-retire",
+      "category": "follow-up",
+      "description": "Multi-turn on Space Shuttle.",
+      "turns": [
+        {
+          "question": "When did the Space Shuttle program end?",
+          "expectedBehavior": "Give the 2011 retirement date, cited.",
+          "expectedKeywords": ["2011"]
+        },
+        {
+          "question": "Which orbiter flew its final flight?",
+          "expectedBehavior": "Answer Atlantis (STS-135), using context from the prior turn.",
+          "expectedKeywords": ["Atlantis"]
+        }
+      ]
+    }
+  ]
 }

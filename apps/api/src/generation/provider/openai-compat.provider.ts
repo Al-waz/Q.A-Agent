@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModelV1 } from "ai";
 import { ConfigService } from "../../common/config/config.service.js";
@@ -16,7 +16,7 @@ import type { ILLMProvider } from "../interfaces/llm-provider.interface.js";
 export class OpenAICompatProvider implements ILLMProvider {
   private readonly client: ReturnType<typeof createOpenAI>;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(@Inject(ConfigService) private readonly config: ConfigService) {
     this.client = createOpenAI({
       apiKey: this.config.env.LLM_API_KEY,
       baseURL: this.config.env.LLM_BASE_URL,

@@ -41,7 +41,7 @@ export class GenerationService {
   private readonly logger = new Logger(GenerationService.name);
 
   constructor(
-    private readonly prompts: PromptLoaderService,
+    @Inject(PromptLoaderService) private readonly prompts: PromptLoaderService,
     @Inject(LLM_PROVIDER) private readonly provider: ILLMProvider,
   ) {}
 
@@ -119,6 +119,7 @@ export class GenerationService {
         model: this.provider.chatModel(),
         schema: CitationsBlockSchema,
         prompt: system,
+        mode: "json",
       });
       return object;
     } catch (err) {

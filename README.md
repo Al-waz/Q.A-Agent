@@ -14,7 +14,7 @@ pnpm install
 
 # 2. Environment
 cp .env.example .env
-# Fill in OPENROUTER_API_KEY and JINA_API_KEY.
+# Fill in LLM_API_KEY (Ollama Cloud) and JINA_API_KEY.
 
 # 3. Start Weaviate
 pnpm docker:up
@@ -43,7 +43,8 @@ pnpm evaluate
 | Backend | NestJS + Fastify | Spec-required. Module system maps cleanly to rubric axes. |
 | LLM SDK | Vercel AI SDK | Spec-required. `streamText` + `generateObject` + `tool()`. |
 | Language | TypeScript (strict) | Spec-required. End-to-end type safety via shared Zod schemas. |
-| LLM | Qwen 3.6 Plus via OpenRouter (free) | Frontier open-weight, 1M context, native tool calling, $0. |
+| LLM (chat) | `gemma4:31b-cloud` via Ollama Cloud | Google's latest open model, 256K context, MMLU-Pro 85.2, fast on hosted inference. OpenAI-compatible endpoint — swap via a single env var. |
+| LLM (judge) | `deepseek-v3.2:cloud` via Ollama Cloud | Deliberately a different family than the chat model to reduce self-bias in LLM-as-judge scoring. Strong structured-output reliability. |
 | Embedding | jina-embeddings-v4 | 2048-dim (Matryoshka-truncatable), 8K context, asymmetric `retrieval.passage` / `retrieval.query` task conditioning, native `late_chunking`. |
 | Reranker | jina-reranker-v2-base-multilingual | Cross-encoder with 1K doc context — reorders top-20 → top-5 using full query↔chunk attention instead of pooled similarity. |
 | Vector DB | Weaviate (self-hosted Docker) | Schema-first data model, native hybrid search, free forever when self-hosted. |
@@ -104,6 +105,50 @@ qa-agent/
 
 ---
 
+## Evaluation Harness
+
+`pnpm evaluate` runs every case in [eval/test-cases.json](eval/test-cases.json) end-to-end through the same retrieval + generation stack the chat endpoint uses, and writes a timestamped report to `eval/results/<iso>.json`.
+
+### Metrics
+
+| Metric | Range | How |
+|---|---|---|
+| Relevance | 1–5 | LLM-as-judge with an anchored rubric. Does the answer address the question? |
+| Groundedness | 1–5 | LLM-as-judge. Is every claim supported by the retrieved context? |
+| Citation accuracy | 0.0–1.0 | Deterministic — mean of three boolean checks: (1) answer contains `[N]` markers, (2) every marker resolves to a retrieved chunk, (3) every cited excerpt is a substring of its chunk. No LLM variance. |
+
+### Test cases
+
+12 cases across 5 categories, each picked to stress a different axis of the pipeline rather than exercise judge-model memorization:
+
+- **Factual** (4) — single-fact lookups (commander names, dates, Mercury-era recall).
+- **Multi-document** (3) — answers that require joining evidence across two articles (e.g. Armstrong bio × Gemini 8 mission).
+- **Out-of-scope** (2) — questions outside the corpus (SpaceX CEO, quantum entanglement). Correct behavior is a clean refusal, not a plausible-sounding answer from the model's prior.
+- **Ambiguous** (1) — "what was the first mission?" The correct behavior is to surface the ambiguity or cover multiple interpretations.
+- **Follow-up** (2) — second turn uses a pronoun (`he`, `which orbiter`) that only resolves given the prior turn. Exercises session memory.
+
+### Models
+
+- **Chat model:** `gemma4:31b-cloud` — answers questions with inline `[N]` citations.
+- **Judge model:** `deepseek-v3.2:cloud` — scores relevance + groundedness against the same retrieved context the chat model saw. Intentionally a different family to reduce self-bias.
+
+### Benchmarks
+
+_Filled in after the final evaluation pass in Phase 7. Placeholder structure:_
+
+| Category | n | Mean R | Mean G | Mean C | Notes |
+|---|---|---|---|---|---|
+| Factual | 4 | — | — | — | |
+| Multi-document | 3 | — | — | — | |
+| Out-of-scope | 2 | — | — | — | |
+| Ambiguous | 1 | — | — | — | |
+| Follow-up | 2 | — | — | — | |
+| **Overall** | **12** | **—** | **—** | **—** | |
+
+Raw per-turn results and judge reasoning traces in [eval/results/](eval/results/).
+
+---
+
 ## Status
 
-_Currently in Phase 1 (Foundation). See implementation plan in repo history._
+_Phase 5 (Evaluation harness) complete. See implementation plan in repo history._

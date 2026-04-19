@@ -35,6 +35,16 @@ export const JudgeScoreSchema = z.object({
 });
 export type JudgeScore = z.infer<typeof JudgeScoreSchema>;
 
+/**
+ * Combined judge output for a single turn — one LLM call returns both
+ * dimensions so the judge sees the full picture and we halve the API cost.
+ */
+export const JudgeTurnScoreSchema = z.object({
+  relevance: JudgeScoreSchema,
+  groundedness: JudgeScoreSchema,
+});
+export type JudgeTurnScore = z.infer<typeof JudgeTurnScoreSchema>;
+
 export const TurnResultSchema = z.object({
   turnIndex: z.number().int().nonnegative(),
   question: z.string(),
