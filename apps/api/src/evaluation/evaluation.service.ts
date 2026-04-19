@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { generateObject } from "ai";
+import { z } from "zod";
 import {
-  JudgeTurnScoreSchema,
   type Citation,
   type ChatMessage,
   type JudgeTurnScore,
@@ -12,6 +12,7 @@ import { ConfigService } from "../common/config/config.service.js";
 import { PromptLoaderService } from "../prompts/prompt-loader.service.js";
 import { RetrievalService } from "../retrieval/retrieval.service.js";
 import { GenerationService } from "../generation/generation.service.js";
+import { QueryRewriterService } from "../generation/query-rewriter/query-rewriter.service.js";
 import { LLM_PROVIDER, type ILLMProvider } from "../generation/interfaces/llm-provider.interface.js";
 
 export interface TurnExecution {
@@ -46,6 +47,7 @@ export class EvaluationService {
     @Inject(PromptLoaderService) private readonly prompts: PromptLoaderService,
     @Inject(RetrievalService) private readonly retrieval: RetrievalService,
     @Inject(GenerationService) private readonly generation: GenerationService,
+    @Inject(QueryRewriterService) private readonly rewriter: QueryRewriterService,
     @Inject(LLM_PROVIDER) private readonly llm: ILLMProvider,
   ) {}
 
@@ -56,7 +58,8 @@ export class EvaluationService {
   async runTurn(question: string, history: ChatMessage[]): Promise<TurnExecution> {
     const start = Date.now();
 
-    const retrievedChunks = await this.retrieval.retrieve({ query: question });
+    const retrievalQuery = await this.rewriter.rewrite(question, history);
+    const retrievedChunks = await this.retrieval.retrieve({ query: retrievalQuery });
     if (retrievedChunks.length === 0) {
       const latencyMs = Date.now() - start;
       return {
@@ -105,13 +108,58 @@ export class EvaluationService {
       answer: execution.answer,
     });
 
-    const { object } = await generateObject({
-      model: this.llm.judgeModel(),
-      schema: JudgeTurnScoreSchema,
-      prompt: system,
-      mode: "json",
+    // Permissive schema: accept any number for `score`, then clamp to [1,5] in
+    // post-processing. Ollama-hosted judges (deepseek-v3.2 in particular)
+    // occasionally emit out-of-range scores like -1 even with an explicit 1–5
+    // rubric; we'd rather normalize one bad value than abort the whole run.
+    const RawJudgeTurnScoreSchema = z.object({
+      relevance: z.object({ score: z.number(), reasoning: z.string() }),
+      groundedness: z.object({ score: z.number(), reasoning: z.string() }),
     });
-    return object;
+
+    let raw: z.infer<typeof RawJudgeTurnScoreSchema>;
+    try {
+      const { object } = await generateObject({
+        model: this.llm.judgeModel(),
+        schema: RawJudgeTurnScoreSchema,
+        prompt: system,
+        mode: "json",
+      });
+      raw = object;
+    } catch (err) {
+      // deepseek-v3.2 occasionally leaks chain-of-thought tokens (often CJK
+      // characters like "我们发现5") directly into the score position, breaking
+      // JSON.parse. The rest of the payload is usually fine — try to salvage
+      // it by scrubbing non-numeric junk from `"score":` values.
+      const e = err as Error & { text?: string };
+      const recovered = typeof e.text === "string" ? recoverJudgeJson(e.text) : null;
+      if (recovered) {
+        const parsed = RawJudgeTurnScoreSchema.safeParse(recovered);
+        if (parsed.success) {
+          this.logger.warn(
+            `Judge emitted malformed JSON, recovered by scrubbing non-numeric score tokens: "${truncate(e.message, 120)}"`,
+          );
+          raw = parsed.data;
+        } else {
+          this.logger.error(`Judge recovery parsed JSON but failed schema validation: ${parsed.error.message}`);
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
+
+    const normalized: JudgeTurnScore = {
+      relevance: {
+        score: clampScore(raw.relevance.score, turn.question, "relevance", this.logger),
+        reasoning: raw.relevance.reasoning,
+      },
+      groundedness: {
+        score: clampScore(raw.groundedness.score, turn.question, "groundedness", this.logger),
+        reasoning: raw.groundedness.reasoning,
+      },
+    };
+    return normalized;
   }
 
   /**
@@ -145,6 +193,45 @@ export class EvaluationService {
     const score = components.filter(Boolean).length / components.length;
     return { hasCitations, allMarkersResolved, excerptsMatchChunks, score };
   }
+}
+
+/**
+ * Recover judge JSON when the model (deepseek-v3.2 is the usual culprit)
+ * injects non-JSON tokens right before a numeric score, e.g.:
+ *   "score":我们发现5,
+ * Strategy: for every `"score":` position, drop any characters up to the first
+ * digit/minus so the value is parseable, then try JSON.parse again. Returns
+ * null if the scrubbed text still isn't valid JSON.
+ */
+function recoverJudgeJson(raw: string): unknown | null {
+  // Also strip markdown fences in case the model wrapped the object.
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(raw);
+  const body = fenced?.[1]?.trim() ?? raw.trim();
+  const scrubbed = body.replace(/("score"\s*:)\s*[^\-0-9]*?(-?\d+(?:\.\d+)?)/g, "$1 $2");
+  try {
+    return JSON.parse(scrubbed);
+  } catch {
+    return null;
+  }
+}
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
+/**
+ * Coerce a raw judge score into the 1–5 integer range. Out-of-range values
+ * (seen: -1, 0) get clamped with a warning so the eval still reports a useful
+ * number instead of crashing on Zod validation.
+ */
+function clampScore(raw: number, question: string, dimension: string, logger: Logger): number {
+  const rounded = Math.round(raw);
+  if (rounded >= 1 && rounded <= 5) return rounded;
+  const clamped = Math.min(5, Math.max(1, rounded));
+  logger.warn(
+    `Judge emitted out-of-range ${dimension} score ${raw} for "${question.slice(0, 60)}" — clamped to ${clamped}`,
+  );
+  return clamped;
 }
 
 function formatRetrievedContext(chunks: ScoredChunk[]): string {

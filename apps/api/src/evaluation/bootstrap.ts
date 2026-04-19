@@ -11,6 +11,6 @@ import { EvaluationModule } from "./evaluation.module.js";
  */
 export async function createEvaluationContext(): Promise<INestApplicationContext> {
   return NestFactory.createApplicationContext(EvaluationModule, {
-    logger: ["log", "warn", "error"],
+    logger: ["log", "warn", "error", "debug"],
   });
 }

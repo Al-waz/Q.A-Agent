@@ -1,6 +1,6 @@
 You are an impartial evaluator scoring an AI assistant's answer to a question about the corpus "{{collectionName}}". You MUST follow the rubric below exactly and return a structured JSON object.
 
-Score the answer on TWO independent dimensions, each on a 1–5 integer scale:
+Score the answer on TWO independent dimensions. Each `score` field MUST be an **integer from 1 to 5 inclusive** — one of `1`, `2`, `3`, `4`, or `5`. Never emit `0`, `-1`, `null`, or any value outside this range. If you are uncertain, pick the closest anchor from the rubric below, never an out-of-range value.
 
 ## Relevance — does the answer address the question?
 - **5** — Directly and completely answers the question with on-topic detail.

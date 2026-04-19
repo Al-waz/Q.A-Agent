@@ -124,8 +124,20 @@ export class GenerationService {
       return object;
     } catch (err) {
       // Don't fail the whole turn if structured extraction hiccups — the answer
-      // still streamed. Fall back to a deterministic extraction from [N] markers.
-      this.logger.warn(`generateObject citations failed, falling back to regex extraction: ${(err as Error).message}`);
+      // still streamed. Try to recover the raw text (gemma4 loves to wrap JSON
+      // in markdown fences) before falling back to deterministic regex.
+      const e = err as Error & { text?: string; cause?: unknown };
+      if (typeof e.text === "string") {
+        const recovered = tryParseFencedJson(e.text);
+        if (recovered) {
+          const parsed = CitationsBlockSchema.safeParse(recovered);
+          if (parsed.success) {
+            this.logger.log("Recovered citations from fenced JSON in model output");
+            return parsed.data;
+          }
+        }
+      }
+      this.logger.warn(`generateObject citations failed, falling back to regex extraction: ${e.message}`);
       return fallbackCitations(answer, chunks);
     }
   }
@@ -147,6 +159,23 @@ function formatRetrievedContext(chunks: ScoredChunk[]): string {
       return `[${i + 1}] ${header}\n${c.text}`;
     })
     .join("\n\n");
+}
+
+/**
+ * Gemma4 (and other chat-tuned models) routinely wrap structured output in
+ * ```json fences despite instructions not to. Strip fences + any surrounding
+ * prose and try to JSON.parse the inner body. Returns null on any failure —
+ * callers fall through to the regex-based deterministic extraction.
+ */
+function tryParseFencedJson(raw: string): unknown | null {
+  const trimmed = raw.trim();
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed);
+  const candidate = fenced?.[1]?.trim() ?? trimmed;
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
+  }
 }
 
 /**

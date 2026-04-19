@@ -1,10 +1,11 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
 import type { ChatMessage, ChatRequest, ChatStreamEvent, ScoredChunk } from "@qa/schemas";
 import { ConfigService } from "../common/config/config.service.js";
 import { SessionService } from "../session/session.service.js";
 import { RetrievalService } from "../retrieval/retrieval.service.js";
 import { GenerationService } from "../generation/generation.service.js";
+import { QueryRewriterService } from "../generation/query-rewriter/query-rewriter.service.js";
 
 /**
  * Orchestrates one chat turn end-to-end:
@@ -22,10 +23,11 @@ export class ChatService {
   private readonly logger = new Logger(ChatService.name);
 
   constructor(
-    private readonly config: ConfigService,
-    private readonly sessions: SessionService,
-    private readonly retrieval: RetrievalService,
-    private readonly generation: GenerationService,
+    @Inject(ConfigService) private readonly config: ConfigService,
+    @Inject(SessionService) private readonly sessions: SessionService,
+    @Inject(RetrievalService) private readonly retrieval: RetrievalService,
+    @Inject(GenerationService) private readonly generation: GenerationService,
+    @Inject(QueryRewriterService) private readonly rewriter: QueryRewriterService,
   ) {}
 
   async handle(body: ChatRequest, reply: FastifyReply): Promise<void> {
@@ -43,7 +45,8 @@ export class ChatService {
     let fullAnswer = "";
     try {
       const history = await this.sessions.getWindow(body.sessionId);
-      const chunks = await this.retrieval.retrieve({ query: body.message });
+      const retrievalQuery = await this.rewriter.rewrite(body.message, history);
+      const chunks = await this.retrieval.retrieve({ query: retrievalQuery });
 
       send({ type: "retrieved", chunks: chunks.map(toRetrievedPayload) });
 
