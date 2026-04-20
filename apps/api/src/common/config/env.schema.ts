@@ -54,6 +54,11 @@ export const EnvSchema = z.object({
   ENABLE_HYBRID_SEARCH: booleanString.default("true"),
   ENABLE_QUERY_REWRITING: booleanString.default("true"),
   ENABLE_TOOL_USE: booleanString.default("false"),
+
+  // Agent (ENABLE_TOOL_USE=true): cap on tool-call rounds per turn to prevent
+  // runaway loops on a chatty model. One "step" = one model decision + optional
+  // tool call. 4 is comfortably above the typical 1–2 the corpus needs.
+  AGENT_MAX_STEPS: z.coerce.number().int().positive().max(10).default(4),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

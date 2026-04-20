@@ -54,9 +54,30 @@ export class EvaluationService {
   /**
    * Run one conversational turn end-to-end: retrieve → generate → drain
    * stream → collect citations. Returns timing for the summary report.
+   * Branches on ENABLE_TOOL_USE so the harness evaluates the same path
+   * production is currently serving.
    */
   async runTurn(question: string, history: ChatMessage[]): Promise<TurnExecution> {
     const start = Date.now();
+
+    if (this.config.env.ENABLE_TOOL_USE) {
+      const { textStream, citations, collectedChunks } = await this.generation.generateAgentStream({
+        userMessage: question,
+        history,
+        userName: "evaluator",
+        collectionName: this.config.env.WEAVIATE_COLLECTION,
+      });
+      let answer = "";
+      for await (const delta of textStream) answer += delta;
+      const citationBlock = await citations;
+      const chunks = await collectedChunks;
+      return {
+        retrievedChunks: chunks,
+        answer,
+        citations: citationBlock.citations,
+        latencyMs: Date.now() - start,
+      };
+    }
 
     const retrievalQuery = await this.rewriter.rewrite(question, history);
     const retrievedChunks = await this.retrieval.retrieve({ query: retrievalQuery });

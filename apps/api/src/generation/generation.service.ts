@@ -6,13 +6,23 @@ import {
   type CitationsBlock,
   type ScoredChunk,
 } from "@qa/schemas";
+import { ConfigService } from "../common/config/config.service.js";
 import { PromptLoaderService } from "../prompts/prompt-loader.service.js";
+import { SearchDocumentsTool } from "../tools/search-documents.tool.js";
+import { GetDocumentSummaryTool } from "../tools/get-document-summary.tool.js";
 import { LLM_PROVIDER, type ILLMProvider } from "./interfaces/llm-provider.interface.js";
 
 export interface GenerateStreamInput {
   userMessage: string;
   history: ChatMessage[];
   retrievedChunks: ScoredChunk[];
+  userName: string;
+  collectionName: string;
+}
+
+export interface GenerateAgentStreamInput {
+  userMessage: string;
+  history: ChatMessage[];
   userName: string;
   collectionName: string;
 }
@@ -25,6 +35,15 @@ export interface GenerateStreamHandles {
    * citations block produced by `generateObject(CitationsBlockSchema)`.
    */
   citations: Promise<CitationsBlock>;
+}
+
+export interface GenerateAgentStreamHandles extends GenerateStreamHandles {
+  /**
+   * Resolves AFTER the stream is exhausted with the chunks the agent actually
+   * retrieved via tool calls during the turn, in first-sighting order. The
+   * numeric `id` used in [N] markers matches `collectedChunks[id-1]`.
+   */
+  collectedChunks: Promise<ScoredChunk[]>;
 }
 
 /**
@@ -41,8 +60,11 @@ export class GenerationService {
   private readonly logger = new Logger(GenerationService.name);
 
   constructor(
+    @Inject(ConfigService) private readonly config: ConfigService,
     @Inject(PromptLoaderService) private readonly prompts: PromptLoaderService,
     @Inject(LLM_PROVIDER) private readonly provider: ILLMProvider,
+    @Inject(SearchDocumentsTool) private readonly searchTool: SearchDocumentsTool,
+    @Inject(GetDocumentSummaryTool) private readonly summaryTool: GetDocumentSummaryTool,
   ) {}
 
   async generateStream(input: GenerateStreamInput): Promise<GenerateStreamHandles> {
@@ -103,6 +125,89 @@ export class GenerationService {
     }
 
     return { textStream: tapped(), citations };
+  }
+
+  /**
+   * Agentic generation path (ENABLE_TOOL_USE=true). Instead of pre-fetching
+   * context and stuffing it into the system prompt, the agent drives retrieval
+   * itself via `searchDocuments` + `getDocumentSummary` tools, up to
+   * `AGENT_MAX_STEPS` rounds of model↔tool traffic.
+   *
+   * The tools close over a shared `collectedChunks` array so every chunk the
+   * agent sees gets a stable numeric id (first-sighting order), which is the
+   * same id the model uses in its `[N]` citation markers. After the stream
+   * drains we reuse the existing `extractCitations` path — citations work
+   * identically to the non-agent flow.
+   */
+  async generateAgentStream(input: GenerateAgentStreamInput): Promise<GenerateAgentStreamHandles> {
+    const system = await this.prompts.load("system", "agent", {
+      userName: input.userName,
+      collectionName: input.collectionName,
+    });
+
+    const messages: CoreMessage[] = [
+      ...input.history
+        .filter((m): m is ChatMessage & { role: "user" | "assistant" } => m.role !== "system")
+        .map((m) => ({ role: m.role, content: m.content })),
+      { role: "user", content: input.userMessage },
+    ];
+
+    const collected: ScoredChunk[] = [];
+    const tools = {
+      searchDocuments: this.searchTool.build(collected),
+      getDocumentSummary: this.summaryTool.build(collected),
+    };
+
+    let capturedError: unknown = null;
+    const result = streamText({
+      model: this.provider.chatModel(),
+      system,
+      messages,
+      tools,
+      maxSteps: this.config.env.AGENT_MAX_STEPS,
+      onError: ({ error }) => {
+        this.logger.error(`agent streamText failed: ${error instanceof Error ? error.message : String(error)}`);
+        capturedError = error;
+      },
+    });
+
+    let accumulated = "";
+    let resolveCitations: (value: CitationsBlock) => void = () => {};
+    let rejectCitations: (reason: unknown) => void = () => {};
+    const citations = new Promise<CitationsBlock>((resolve, reject) => {
+      resolveCitations = resolve;
+      rejectCitations = reject;
+    });
+    let resolveChunks: (value: ScoredChunk[]) => void = () => {};
+    let rejectChunks: (reason: unknown) => void = () => {};
+    const collectedChunks = new Promise<ScoredChunk[]>((resolve, reject) => {
+      resolveChunks = resolve;
+      rejectChunks = reject;
+    });
+
+    const self = this;
+    async function* tapped(): AsyncGenerator<string> {
+      try {
+        for await (const delta of result.textStream) {
+          accumulated += delta;
+          yield delta;
+        }
+        if (capturedError) throw capturedError;
+        if (accumulated.length === 0) {
+          throw new Error("Agent produced no tokens (empty model response)");
+        }
+        self.logger.log(`Agent turn complete: ${collected.length} chunk(s) retrieved across tool calls`);
+        resolveChunks(collected);
+        const block = await self.extractCitations(accumulated, collected);
+        resolveCitations(block);
+      } catch (err) {
+        rejectChunks(err);
+        rejectCitations(err);
+        throw err;
+      }
+    }
+
+    return { textStream: tapped(), citations, collectedChunks };
   }
 
   private async extractCitations(answer: string, chunks: ScoredChunk[]): Promise<CitationsBlock> {
