@@ -38,6 +38,18 @@ export const ChatStreamEventSchema = z.discriminatedUnion("type", [
       }),
     ),
   }),
+  /**
+   * Agent-mode only. Emitted when the model invokes a tool so the UI can show
+   * a live "🔍 searching…" badge. `id` is the AI SDK's `toolCallId`, used to
+   * match the later `tool-call-end` event.
+   */
+  z.object({
+    type: z.literal("tool-call-start"),
+    id: z.string(),
+    name: z.string(),
+    args: z.unknown(),
+  }),
+  z.object({ type: z.literal("tool-call-end"), id: z.string() }),
   z.object({ type: z.literal("error"), message: z.string(), recoverable: z.boolean() }),
   z.object({ type: z.literal("done") }),
 ]);

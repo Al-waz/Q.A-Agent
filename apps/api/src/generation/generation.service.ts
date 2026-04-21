@@ -37,6 +37,10 @@ export interface GenerateStreamHandles {
   citations: Promise<CitationsBlock>;
 }
 
+export type ToolLifecycleEvent =
+  | { type: "tool-call-start"; id: string; name: string; args: unknown }
+  | { type: "tool-call-end"; id: string };
+
 export interface GenerateAgentStreamHandles extends GenerateStreamHandles {
   /**
    * Resolves AFTER the stream is exhausted with the chunks the agent actually
@@ -44,6 +48,12 @@ export interface GenerateAgentStreamHandles extends GenerateStreamHandles {
    * numeric `id` used in [N] markers matches `collectedChunks[id-1]`.
    */
   collectedChunks: Promise<ScoredChunk[]>;
+  /**
+   * Tool lifecycle events (start/end) surfaced live so the UI can render a
+   * "🔍 searching…" pill while the tool is running. Interleaves with
+   * `textStream` — consumers should multiplex both or poll this separately.
+   */
+  toolEvents: AsyncIterable<ToolLifecycleEvent>;
 }
 
 /**
@@ -171,7 +181,14 @@ export class GenerationService {
       },
     });
 
-    let accumulated = "";
+    // Two channels fan out from the one `fullStream` loop: text deltas go to
+    // the consumer that streams tokens to SSE, tool lifecycle events go to a
+    // separate consumer that can render live "🔍 searching…" badges. Both
+    // close when fullStream finishes. Consumers MUST drain both iterables
+    // (Promise.all) to avoid one blocking the other.
+    const textChannel = createAsyncChannel<string>();
+    const toolChannel = createAsyncChannel<ToolLifecycleEvent>();
+
     let resolveCitations: (value: CitationsBlock) => void = () => {};
     let rejectCitations: (reason: unknown) => void = () => {};
     const citations = new Promise<CitationsBlock>((resolve, reject) => {
@@ -185,13 +202,31 @@ export class GenerationService {
       rejectChunks = reject;
     });
 
+    let accumulated = "";
     const self = this;
-    async function* tapped(): AsyncGenerator<string> {
+    // Background pump: consume fullStream exactly once, fan out to both
+    // channels. We kick it off eagerly here (not inside a generator) so tool
+    // events flow even before the caller starts iterating the text stream.
+    void (async () => {
       try {
-        for await (const delta of result.textStream) {
-          accumulated += delta;
-          yield delta;
+        for await (const part of result.fullStream) {
+          if (part.type === "text-delta") {
+            accumulated += part.textDelta;
+            textChannel.push(part.textDelta);
+          } else if (part.type === "tool-call") {
+            self.logger.log(`tool-call: ${part.toolName}(${JSON.stringify(part.args)})`);
+            toolChannel.push({
+              type: "tool-call-start",
+              id: part.toolCallId,
+              name: part.toolName,
+              args: part.args,
+            });
+          } else if (part.type === "tool-result") {
+            toolChannel.push({ type: "tool-call-end", id: part.toolCallId });
+          }
         }
+        textChannel.close();
+        toolChannel.close();
         if (capturedError) throw capturedError;
         if (accumulated.length === 0) {
           throw new Error("Agent produced no tokens (empty model response)");
@@ -201,13 +236,14 @@ export class GenerationService {
         const block = await self.extractCitations(accumulated, collected);
         resolveCitations(block);
       } catch (err) {
+        textChannel.fail(err);
+        toolChannel.fail(err);
         rejectChunks(err);
         rejectCitations(err);
-        throw err;
       }
-    }
+    })();
 
-    return { textStream: tapped(), citations, collectedChunks };
+    return { textStream: textChannel.iter, citations, collectedChunks, toolEvents: toolChannel.iter };
   }
 
   private async extractCitations(answer: string, chunks: ScoredChunk[]): Promise<CitationsBlock> {
@@ -246,6 +282,56 @@ export class GenerationService {
       return fallbackCitations(answer, chunks);
     }
   }
+}
+
+/**
+ * Minimal single-producer/single-consumer async channel with backpressure-free
+ * buffering. Used to fan `streamText`'s `fullStream` out to two consumers
+ * (token SSE + tool-event SSE) without double-iterating the upstream.
+ */
+function createAsyncChannel<T>(): {
+  push: (value: T) => void;
+  close: () => void;
+  fail: (err: unknown) => void;
+  iter: AsyncIterable<T>;
+} {
+  const buffer: T[] = [];
+  const waiters: Array<(v: IteratorResult<T, undefined>) => void> = [];
+  let closed = false;
+  let error: unknown = null;
+
+  const push = (value: T): void => {
+    if (closed) return;
+    const waiter = waiters.shift();
+    if (waiter) waiter({ value, done: false });
+    else buffer.push(value);
+  };
+  const close = (): void => {
+    if (closed) return;
+    closed = true;
+    while (waiters.length > 0) waiters.shift()!({ value: undefined, done: true });
+  };
+  const fail = (err: unknown): void => {
+    if (closed) return;
+    error = err;
+    closed = true;
+    while (waiters.length > 0) waiters.shift()!({ value: undefined, done: true });
+  };
+
+  const iter: AsyncIterable<T> = {
+    [Symbol.asyncIterator](): AsyncIterator<T> {
+      return {
+        next(): Promise<IteratorResult<T, undefined>> {
+          if (error) return Promise.reject(error);
+          if (buffer.length > 0) return Promise.resolve({ value: buffer.shift()!, done: false });
+          if (closed) return Promise.resolve({ value: undefined, done: true });
+          return new Promise((resolve) => waiters.push(resolve));
+        },
+      };
+    },
+  };
+
+  return { push, close, fail, iter };
 }
 
 /**

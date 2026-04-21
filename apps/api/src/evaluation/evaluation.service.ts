@@ -61,14 +61,25 @@ export class EvaluationService {
     const start = Date.now();
 
     if (this.config.env.ENABLE_TOOL_USE) {
-      const { textStream, citations, collectedChunks } = await this.generation.generateAgentStream({
+      const { textStream, toolEvents, citations, collectedChunks } = await this.generation.generateAgentStream({
         userMessage: question,
         history,
         userName: "evaluator",
         collectionName: this.config.env.WEAVIATE_COLLECTION,
       });
       let answer = "";
-      for await (const delta of textStream) answer += delta;
+      // The fullStream pump fans out to both channels, so we must drain both
+      // in parallel — eval doesn't surface tool lifecycle anywhere but still
+      // has to consume it so the channel doesn't back-pressure the pump.
+      await Promise.all([
+        (async () => {
+          for await (const delta of textStream) answer += delta;
+        })(),
+        (async () => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          for await (const _evt of toolEvents) { /* discarded */ }
+        })(),
+      ]);
       const citationBlock = await citations;
       const chunks = await collectedChunks;
       return {

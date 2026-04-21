@@ -107,7 +107,7 @@ export class ChatService {
     history: ChatMessage[],
     send: (event: ChatStreamEvent) => void,
   ): Promise<string> {
-    const { textStream, citations, collectedChunks } = await this.generation.generateAgentStream({
+    const { textStream, toolEvents, citations, collectedChunks } = await this.generation.generateAgentStream({
       userMessage: body.message,
       history,
       userName: "there",
@@ -115,10 +115,20 @@ export class ChatService {
     });
 
     let fullAnswer = "";
-    for await (const delta of textStream) {
-      fullAnswer += delta;
-      send({ type: "token", delta });
-    }
+    // Consume text + tool channels in parallel. Both iterables share one
+    // underlying fullStream pump inside GenerationService — iterating one
+    // sequentially would stall the other.
+    await Promise.all([
+      (async () => {
+        for await (const delta of textStream) {
+          fullAnswer += delta;
+          send({ type: "token", delta });
+        }
+      })(),
+      (async () => {
+        for await (const evt of toolEvents) send(evt);
+      })(),
+    ]);
 
     const chunks = await collectedChunks;
     send({ type: "retrieved", chunks: chunks.map(toRetrievedPayload) });

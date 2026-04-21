@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { ChatMessage } from "@qa/schemas";
-import { SESSION_STORE, type ISessionStore } from "./stores/session-store.interface.js";
+import { SESSION_STORE, type ISessionStore, type SessionSummary } from "./stores/session-store.interface.js";
 
 /**
  * Session/conversation-memory service.
@@ -29,5 +29,13 @@ export class SessionService {
 
   async clear(sessionId: string): Promise<void> {
     return this.store.clear(sessionId);
+  }
+
+  async getFullHistory(sessionId: string): Promise<ChatMessage[]> {
+    return this.store.getHistory(sessionId);
+  }
+
+  async list(): Promise<SessionSummary[]> {
+    return this.store.list();
   }
 }
