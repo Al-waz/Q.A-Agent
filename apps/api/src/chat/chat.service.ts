@@ -30,6 +30,10 @@ export class ChatService {
   ) {}
 
   async handle(body: ChatRequest, reply: FastifyReply): Promise<void> {
+    this.logger.log(
+      `chat.handle session=${body.sessionId} mode=${this.config.env.ENABLE_TOOL_USE ? "agent" : "rag"} msg="${body.message.slice(0, 60)}"`,
+    );
+
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
@@ -47,6 +51,7 @@ export class ChatService {
         ? await this.handleAgent(body, history, send)
         : await this.handleRag(body, history, send);
       await this.persistTurn(body.sessionId, body.message, fullAnswer);
+      this.logger.log(`chat.handle complete session=${body.sessionId} answerChars=${fullAnswer.length}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       this.logger.error(`Chat turn failed: ${message}`);
@@ -90,6 +95,7 @@ export class ChatService {
       fullAnswer += delta;
       send({ type: "token", delta });
     }
+    send({ type: "text-end" });
 
     const block = await citations;
     send({ type: "citations", citations: block.citations });
@@ -124,6 +130,7 @@ export class ChatService {
           fullAnswer += delta;
           send({ type: "token", delta });
         }
+        send({ type: "text-end" });
       })(),
       (async () => {
         for await (const evt of toolEvents) send(evt);

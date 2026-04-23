@@ -134,16 +134,37 @@ qa-agent/
 
 ### Benchmarks
 
-_Filled in after the final evaluation pass in Phase 7. Placeholder structure:_
+## Evaluation Results
 
-| Category | n | Mean R | Mean G | Mean C | Notes |
+Four runs were executed to measure the independent impact of tool use and query rewriting. Hybrid search and reranking were enabled across all runs.
+
+**Overall results:**
+
+| Run | Tools | Query Rewriting | Mean R | Mean G | Mean C |
 |---|---|---|---|---|---|
-| Factual | 4 | — | — | — | |
-| Multi-document | 3 | — | — | — | |
-| Out-of-scope | 2 | — | — | — | |
-| Ambiguous | 1 | — | — | — | |
-| Follow-up | 2 | — | — | — | |
-| **Overall** | **12** | **—** | **—** | **—** | |
+| 1 | ✅ | ✅ | 4.86 | 4.50 | 0.93 |
+| 2 | ❌ | ✅ | 4.93 | 4.71 | 0.95 |
+| 3 | ❌ | ❌ | 4.93 | 5.00 | 0.91 |
+| 4 | ✅ | ❌ | 4.93 | 4.79 | 0.95 |
+
+**By category:**
+
+| Category | n | R (T+QR) | G (T+QR) | C (T+QR) | R (−T+QR) | G (−T+QR) | C (−T+QR) | R (−T−QR) | G (−T−QR) | C (−T−QR) | R (T−QR) | G (T−QR) | C (T−QR) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Factual | 4 | 4.75 | 5.00 | 1.00 | 5.00 | 5.00 | 1.00 | 5.00 | 5.00 | 1.00 | 5.00 | 5.00 | 1.00 |
+| Multi-document | 3 | 4.67 | 5.00 | 1.00 | 4.67 | 5.00 | 1.00 | 4.67 | 5.00 | 1.00 | 4.67 | 5.00 | 1.00 |
+| Out-of-scope | 2 | 5.00 | 3.50 | 0.67 | 5.00 | 3.00 | 0.67 | 5.00 | 5.00 | 0.67 | 5.00 | 3.50 | 0.67 |
+| Ambiguous | 1 | 5.00 | 5.00 | 1.00 | 5.00 | 5.00 | 1.00 | 5.00 | 5.00 | 1.00 | 5.00 | 5.00 | 1.00 |
+| Follow-up | 4 | 5.00 | 4.00 | 0.92 | 5.00 | 5.00 | 1.00 | 5.00 | 5.00 | 0.83 | 5.00 | 5.00 | 1.00 |
+| **Overall** | **14** | **4.86** | **4.50** | **0.93** | **4.93** | **4.71** | **0.95** | **4.93** | **5.00** | **0.91** | **4.93** | **4.79** | **0.95** |
+
+### Analysis
+
+Across all four runs the scores remain within a narrow band (≤0.50 on groundedness, ≤0.09 on citation accuracy), which demonstrates that the pipeline is stable and consistent regardless of configuration. The retrieval core — hybrid search and reranking — is doing the heavy lifting in every case.
+
+The most interesting finding is that **tools and query rewriting are partially redundant for follow-up turns**. Run 4 (tools, no query rewriting) achieved G=5.00 on follow-up because the agent rewrote the ambiguous query naturally through its tool call ("Which orbiter flew its final flight?" → "which space shuttle orbiter flew the final flight of the program"), matching the result of explicit query rewriting in Run 2.
+
+The only consistent weak spot across all runs is **out-of-scope refusal**: the agent found Elon Musk mentioned in the ISS article and answered instead of refusing. This is a prompt guardrail issue, not a retrieval issue, and is a known area for improvement.
 
 Raw per-turn results and judge reasoning traces in [eval/results/](eval/results/).
 

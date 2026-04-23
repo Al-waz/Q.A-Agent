@@ -50,6 +50,12 @@ export const ChatStreamEventSchema = z.discriminatedUnion("type", [
     args: z.unknown(),
   }),
   z.object({ type: z.literal("tool-call-end"), id: z.string() }),
+  /**
+   * Emitted after the last `token` and before `citations`. Lets the client
+   * drop the typing cursor immediately instead of waiting for citation
+   * extraction (which can add a second or two).
+   */
+  z.object({ type: z.literal("text-end") }),
   z.object({ type: z.literal("error"), message: z.string(), recoverable: z.boolean() }),
   z.object({ type: z.literal("done") }),
 ]);

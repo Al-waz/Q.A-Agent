@@ -34,9 +34,9 @@ export function MessageBubble({ turn, streaming }: { turn: ChatTurn; streaming: 
               <Dot delay={300} />
             </span>
           ) : (
-            renderWithCitations(turn.content, turn.citations ?? [])
+            renderWithCitations(turn.content, turn.citations ?? [], streaming && !turn.textDone)
           )}
-          {streaming && !isUser && turn.content.length > 0 ? (
+          {streaming && !isUser && turn.content.length > 0 && !turn.textDone ? (
             <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-current align-middle" />
           ) : null}
         </div>
@@ -46,29 +46,52 @@ export function MessageBubble({ turn, streaming }: { turn: ChatTurn; streaming: 
 }
 
 /**
- * Walk the answer text and swap each `[n]` marker for a CitationPill when
- * the citations block has a matching id. Unmatched markers render as plain
- * text — safer than hiding them if the structured extractor missed one.
+ * Walk the answer text and swap each `[n]` marker for a pill. If citation
+ * data is already attached to the turn, render a clickable CitationPill;
+ * otherwise render a visually-identical placeholder. This avoids the flash
+ * of raw `[n]` text during the gap between tokens finishing and the
+ * citations event arriving.
+ *
+ * When `streamingText` is true (tokens still flowing), we also strip any
+ * trailing incomplete `[` or `[123` at the very end of the text so the
+ * partial marker doesn't show as raw characters before the closing `]`
+ * token arrives and swaps it for a pill.
  */
-function renderWithCitations(text: string, citations: Citation[]): React.ReactNode[] {
-  if (citations.length === 0) return [text];
+function renderWithCitations(
+  text: string,
+  citations: Citation[],
+  streamingText: boolean,
+): React.ReactNode[] {
+  const effective = streamingText ? text.replace(/\[\d*$/, "") : text;
   const byId = new Map(citations.map((c) => [c.id, c] as const));
   const parts: React.ReactNode[] = [];
   let last = 0;
   const re = /\[(\d+)\]/g;
   let match: RegExpExecArray | null;
-  while ((match = re.exec(text)) !== null) {
-    if (match.index > last) parts.push(text.slice(last, match.index));
-    const citation = byId.get(Number(match[1]));
+  while ((match = re.exec(effective)) !== null) {
+    if (match.index > last) parts.push(effective.slice(last, match.index));
+    const id = Number(match[1]);
+    const citation = byId.get(id);
     if (citation) {
       parts.push(<CitationPill key={`c-${match.index}`} citation={citation} />);
     } else {
-      parts.push(match[0]);
+      parts.push(<PendingCitationPill key={`p-${match.index}`} id={id} />);
     }
     last = match.index + match[0].length;
   }
-  if (last < text.length) parts.push(text.slice(last));
+  if (last < effective.length) parts.push(effective.slice(last));
   return parts;
+}
+
+function PendingCitationPill({ id }: { id: number }): JSX.Element {
+  return (
+    <span
+      aria-label={`Citation ${id} (loading)`}
+      className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-primary/30 bg-primary/5 px-1.5 text-[11px] font-semibold text-primary/70"
+    >
+      {id}
+    </span>
+  );
 }
 
 function Dot({ delay }: { delay: number }): JSX.Element {

@@ -21,6 +21,12 @@ export interface ChatTurn {
   citations?: Citation[];
   /** Assistant only — attached after the `retrieved` SSE event. */
   retrieved?: RetrievedChunk[];
+  /**
+   * Assistant only — flipped true by the `text-end` SSE event. Lets the UI
+   * drop the typing cursor as soon as tokens stop, without waiting for the
+   * (sometimes slow) citation extraction to finish.
+   */
+  textDone?: boolean;
 }
 
 export interface UseChatStream {
@@ -165,6 +171,9 @@ function applyEvent(event: ChatStreamEvent, update: (fn: (t: ChatTurn) => ChatTu
         ...t,
         toolCalls: (t.toolCalls ?? []).map((tc) => (tc.id === event.id ? { ...tc, status: "done" } : tc)),
       }));
+      return;
+    case "text-end":
+      update((t) => ({ ...t, textDone: true }));
       return;
     case "retrieved":
       update((t) => ({ ...t, retrieved: event.chunks }));

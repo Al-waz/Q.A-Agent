@@ -1,7 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { generateObject, streamText, type CoreMessage } from "ai";
+import { streamText, type CoreMessage } from "ai";
 import {
-  CitationsBlockSchema,
   type ChatMessage,
   type CitationsBlock,
   type ScoredChunk,
@@ -115,7 +114,6 @@ export class GenerationService {
       rejectCitations = reject;
     });
 
-    const self = this;
     async function* tapped(): AsyncGenerator<string> {
       try {
         for await (const delta of result.textStream) {
@@ -126,8 +124,7 @@ export class GenerationService {
         if (accumulated.length === 0) {
           throw new Error("Generation produced no tokens (empty model response)");
         }
-        const block = await self.extractCitations(accumulated, input.retrievedChunks);
-        resolveCitations(block);
+        resolveCitations(fallbackCitations(accumulated, input.retrievedChunks));
       } catch (err) {
         rejectCitations(err);
         throw err;
@@ -223,6 +220,12 @@ export class GenerationService {
             });
           } else if (part.type === "tool-result") {
             toolChannel.push({ type: "tool-call-end", id: part.toolCallId });
+          } else if (part.type === "error") {
+            self.logger.error(`fullStream error part: ${JSON.stringify(part.error)}`);
+          } else if (part.type === "finish") {
+            self.logger.log(`fullStream finish: reason=${part.finishReason}`);
+          } else {
+            self.logger.debug(`fullStream part: ${part.type}`);
           }
         }
         textChannel.close();
@@ -233,8 +236,7 @@ export class GenerationService {
         }
         self.logger.log(`Agent turn complete: ${collected.length} chunk(s) retrieved across tool calls`);
         resolveChunks(collected);
-        const block = await self.extractCitations(accumulated, collected);
-        resolveCitations(block);
+        resolveCitations(fallbackCitations(accumulated, collected));
       } catch (err) {
         textChannel.fail(err);
         toolChannel.fail(err);
@@ -244,43 +246,6 @@ export class GenerationService {
     })();
 
     return { textStream: textChannel.iter, citations, collectedChunks, toolEvents: toolChannel.iter };
-  }
-
-  private async extractCitations(answer: string, chunks: ScoredChunk[]): Promise<CitationsBlock> {
-    // Short-circuit: if the answer has no [N] markers, skip the extra LLM call.
-    if (!/\[\d+\]/.test(answer) || chunks.length === 0) {
-      return { citations: [] };
-    }
-
-    const sources = formatRetrievedContext(chunks);
-    const system = await this.prompts.load("system", "citations", { answer, sources });
-
-    try {
-      const { object } = await generateObject({
-        model: this.provider.chatModel(),
-        schema: CitationsBlockSchema,
-        prompt: system,
-        mode: "json",
-      });
-      return object;
-    } catch (err) {
-      // Don't fail the whole turn if structured extraction hiccups — the answer
-      // still streamed. Try to recover the raw text (gemma4 loves to wrap JSON
-      // in markdown fences) before falling back to deterministic regex.
-      const e = err as Error & { text?: string; cause?: unknown };
-      if (typeof e.text === "string") {
-        const recovered = tryParseFencedJson(e.text);
-        if (recovered) {
-          const parsed = CitationsBlockSchema.safeParse(recovered);
-          if (parsed.success) {
-            this.logger.log("Recovered citations from fenced JSON in model output");
-            return parsed.data;
-          }
-        }
-      }
-      this.logger.warn(`generateObject citations failed, falling back to regex extraction: ${e.message}`);
-      return fallbackCitations(answer, chunks);
-    }
   }
 }
 
@@ -353,25 +318,9 @@ function formatRetrievedContext(chunks: ScoredChunk[]): string {
 }
 
 /**
- * Gemma4 (and other chat-tuned models) routinely wrap structured output in
- * ```json fences despite instructions not to. Strip fences + any surrounding
- * prose and try to JSON.parse the inner body. Returns null on any failure —
- * callers fall through to the regex-based deterministic extraction.
- */
-function tryParseFencedJson(raw: string): unknown | null {
-  const trimmed = raw.trim();
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed);
-  const candidate = fenced?.[1]?.trim() ?? trimmed;
-  try {
-    return JSON.parse(candidate);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Deterministic citation builder from inline `[N]` markers. Only used when
- * `generateObject` fails — keeps the stream resilient.
+ * Build the citation block directly from the inline `[N]` markers the model
+ * wrote. Runs synchronously — no extra LLM call — so the UI can mount
+ * clickable citation pills the moment tokens finish streaming.
  */
 function fallbackCitations(answer: string, chunks: ScoredChunk[]): CitationsBlock {
   const ids = new Set<number>();
