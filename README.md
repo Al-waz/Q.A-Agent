@@ -43,14 +43,29 @@ pnpm evaluate
 | Backend | NestJS + Fastify | Spec-required. Module system maps cleanly to rubric axes. |
 | LLM SDK | Vercel AI SDK | Spec-required. `streamText` + `generateObject` + `tool()`. |
 | Language | TypeScript (strict) | Spec-required. End-to-end type safety via shared Zod schemas. |
-| LLM (chat) | `gemma4:31b-cloud` via Ollama Cloud | Google's latest open model, 256K context, MMLU-Pro 85.2, fast on hosted inference. OpenAI-compatible endpoint — swap via a single env var. |
-| LLM (judge) | `deepseek-v3.2:cloud` via Ollama Cloud | Deliberately a different family than the chat model to reduce self-bias in LLM-as-judge scoring. Strong structured-output reliability. |
+| LLM (chat) | `gemma4:31b-cloud` via Ollama Cloud | Google's latest open model, 256K documented context, native tool-calling support. Validated end-to-end by the eval harness. |
+| LLM (agent fallback) | `gemini-3-flash-preview:cloud` via Ollama Cloud | 1M context. Used only when `ENABLE_TOOL_USE=true`. Configurable via `AGENT_MODEL`. See [Model choices](#model-choices) below for why. |
+| LLM (judge) | `qwen3.5:397b-cloud` via Ollama Cloud | Different family from the chat model to reduce self-bias. Low hallucination rate on factual tasks and reliable structured-output. |
 | Embedding | jina-embeddings-v4 | 2048-dim (Matryoshka-truncatable), 8K context, asymmetric `retrieval.passage` / `retrieval.query` task conditioning, native `late_chunking`. |
 | Reranker | jina-reranker-v2-base-multilingual | Cross-encoder with 1K doc context — reorders top-20 → top-5 using full query↔chunk attention instead of pooled similarity. |
 | Vector DB | Weaviate (self-hosted Docker) | Schema-first data model, native hybrid search, free forever when self-hosted. |
-| Frontend | Next.js + `@ai-sdk/react` useChat + shadcn/ui | Spec's bonus; citation popovers + retrieved-chunk debug drawer. |
+| Frontend | Next.js 15 + Tailwind + shadcn/ui + custom SSE consumer hook | Spec's bonus. Custom `useChatStream` hook over the SSE protocol (rather than `@ai-sdk/react`'s `useChat`) because our event schema carries extra event types (`tool-call-start`, `retrieved`, `citations`) that don't map cleanly onto the AI SDK's Data Stream Protocol. |
 
-Full justification for each choice in [docs/architecture.md](docs/architecture.md) _(tracked in Phase 7)_.
+---
+
+## Model choices
+
+### Chat model — `gemma4:31b-cloud`
+
+Three reasons. First, native tool-calling support — required for the agentic `searchDocuments` and `getDocumentSummary` tools. Second, a 256K documented context window, large enough on paper to handle multiple retrieved chunks plus conversation history in a single pass. Third, available as an Ollama Cloud model, so no local GPU is required and the OpenAI-compatible endpoint makes it swappable with a single env var.
+
+### Agent fallback — `gemini-3-flash-preview:cloud`
+
+A real production constraint surfaced during interactive testing: Ollama Cloud's serving layer caps gemma4's *effective* context at roughly 2K tokens regardless of the model's documented 256K. The eval harness never exposes this — its longest case is two turns and the per-request payload stays small — but a multi-turn chat with `ENABLE_TOOL_USE=true` blows past the cap because every round-trip carries the full system prompt, tool schemas, accumulated history, and tool results. `gemini-3-flash-preview:cloud` (1M context) handles this load comfortably and is wired as the agent-only model via `AGENT_MODEL`. The RAG path keeps using `LLM_MODEL` (gemma4), which the eval validates.
+
+### Judge model — `qwen3.5:397b-cloud`
+
+A deliberate choice was made to use a different model family for judging than for generation, to reduce self-bias in LLM-as-judge scoring. Qwen3.5 is Alibaba's family (vs Google's Gemma), so the judge has no incentive to favor the chat model's outputs. Qwen3.5 was specifically chosen over alternatives like DeepSeek because it has a low hallucination rate on factual tasks — critical for a groundedness judge that needs to say "this claim is not supported" rather than fabricate a justification for a score. It also has strong instruction following, which ensures the 1–5 scoring rubric is applied consistently across all turns.
 
 ---
 
@@ -130,7 +145,7 @@ qa-agent/
 ### Models
 
 - **Chat model:** `gemma4:31b-cloud` — answers questions with inline `[N]` citations.
-- **Judge model:** `deepseek-v3.2:cloud` — scores relevance + groundedness against the same retrieved context the chat model saw. Intentionally a different family to reduce self-bias.
+- **Judge model:** `qwen3.5:397b-cloud` — scores relevance + groundedness against the same retrieved context the chat model saw. Intentionally a different family to reduce self-bias. Initial runs used DeepSeek but its structured-output reliability degraded on rerun (malformed JSON, occasional out-of-range scores), so it was swapped for Qwen3.5.
 
 ### Benchmarks
 
@@ -166,10 +181,8 @@ The most interesting finding is that **tools and query rewriting are partially r
 
 The only consistent weak spot across all runs is **out-of-scope refusal**: the agent found Elon Musk mentioned in the ISS article and answered instead of refusing. This is a prompt guardrail issue, not a retrieval issue, and is a known area for improvement.
 
+### Recommendation
+
+Run 3 (`ENABLE_TOOL_USE=false`, `ENABLE_QUERY_REWRITING=false`) tied or beat every other configuration on every metric. The takeaway: for this corpus the deterministic RAG path with hybrid search + reranking is already strong enough that adding the agent loop on top is pure overhead — extra LLM round-trips, more tokens, longer latency, identical answers. **The recommended production default is `ENABLE_TOOL_USE=false`**; the agent path is kept in code (and demonstrated in commits) to satisfy the bonus rubric and remain available behind a single env flag if a future, larger or more cross-document corpus would benefit from agentic decomposition.
+
 Raw per-turn results and judge reasoning traces in [eval/results/](eval/results/).
-
----
-
-## Status
-
-_Phase 5 (Evaluation harness) complete. See implementation plan in repo history._
