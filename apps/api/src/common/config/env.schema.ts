@@ -19,6 +19,11 @@ export const EnvSchema = z.object({
   LLM_MODEL: z.string().default("qwen3-coder:480b"),
   LLM_BASE_URL: z.string().url().default("https://ollama.com/v1"),
   JUDGE_MODEL: z.string().default("deepseek-v3.1:671b"),
+  // Model used by the agent (ENABLE_TOOL_USE=true). The agent path stuffs
+  // system prompt + tool schemas + tool results into every round-trip and
+  // overflows tighter Ollama Cloud caps. Default is a 1M-context Gemini
+  // preview that handles the load comfortably.
+  AGENT_MODEL: z.string().default("gemini-3-flash-preview:cloud"),
 
   // Jina (embeddings + reranker share the same free-tier token pool)
   JINA_API_KEY: z.string().min(1, "JINA_API_KEY is required"),

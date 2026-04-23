@@ -52,6 +52,9 @@ export class GetDocumentSummaryTool {
   }
 }
 
+/** Same context-budget cap as SearchDocumentsTool — see that file for rationale. */
+const MAX_CHUNK_CHARS_FOR_AGENT = 600;
+
 function formatForAgent(chunk: ScoredChunk, collectedChunks: ScoredChunk[]) {
   const existing = collectedChunks.findIndex((c) => c.id === chunk.id);
   const index = existing >= 0 ? existing : collectedChunks.push(chunk) - 1;
@@ -59,6 +62,9 @@ function formatForAgent(chunk: ScoredChunk, collectedChunks: ScoredChunk[]) {
     id: index + 1,
     sourceTitle: chunk.sourceTitle,
     section: chunk.section,
-    text: chunk.text,
+    text:
+      chunk.text.length > MAX_CHUNK_CHARS_FOR_AGENT
+        ? `${chunk.text.slice(0, MAX_CHUNK_CHARS_FOR_AGENT)}…`
+        : chunk.text,
   };
 }

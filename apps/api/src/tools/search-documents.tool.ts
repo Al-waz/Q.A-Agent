@@ -50,6 +50,12 @@ export class SearchDocumentsTool {
   }
 }
 
+/** Cap per-chunk text in tool results so multi-turn agent context doesn't
+ * blow past the model's context window. The full text is kept in
+ * `collectedChunks` for citation excerpts; the agent itself only needs
+ * enough to extract the answer. */
+const MAX_CHUNK_CHARS_FOR_AGENT = 600;
+
 /**
  * Shape returned to the model. We assign a stable numeric id from the shared
  * `collectedChunks` list so the same chunk always gets the same id across
@@ -62,7 +68,10 @@ function formatForAgent(chunk: ScoredChunk, collectedChunks: ScoredChunk[]) {
     id: index + 1,
     sourceTitle: chunk.sourceTitle,
     section: chunk.section,
-    text: chunk.text,
+    text:
+      chunk.text.length > MAX_CHUNK_CHARS_FOR_AGENT
+        ? `${chunk.text.slice(0, MAX_CHUNK_CHARS_FOR_AGENT)}…`
+        : chunk.text,
   };
 }
 

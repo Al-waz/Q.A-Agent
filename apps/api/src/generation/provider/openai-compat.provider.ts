@@ -28,6 +28,10 @@ export class OpenAICompatProvider implements ILLMProvider {
     return this.client(this.config.env.LLM_MODEL);
   }
 
+  agentModel(): LanguageModelV1 {
+    return this.client(this.config.env.AGENT_MODEL);
+  }
+
   judgeModel(): LanguageModelV1 {
     return this.client(this.config.env.JUDGE_MODEL);
   }

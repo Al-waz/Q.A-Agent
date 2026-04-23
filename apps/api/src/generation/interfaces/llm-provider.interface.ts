@@ -12,6 +12,11 @@ export interface ILLMProvider {
   /** The primary chat/generation model (e.g. Qwen 3.6 Plus). */
   chatModel(): LanguageModelV1;
 
+  /** Model for the agent (tool-use) path. Distinct from `chatModel` so the
+   * agent can use a larger-context model that fits system prompt + tool
+   * schemas + tool results without overflowing the provider's cap. */
+  agentModel(): LanguageModelV1;
+
   /** The judge model used by the evaluation harness. Intentionally separate
    * (and ideally a different family) to reduce self-evaluation bias. */
   judgeModel(): LanguageModelV1;

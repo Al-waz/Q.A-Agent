@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { streamText, type CoreMessage } from "ai";
+import { generateObject, streamText, type CoreMessage } from "ai";
 import {
+  CitationsBlockSchema,
   type ChatMessage,
   type CitationsBlock,
   type ScoredChunk,
@@ -87,7 +88,10 @@ export class GenerationService {
     const messages: CoreMessage[] = [
       ...input.history
         .filter((m): m is ChatMessage & { role: "user" | "assistant" } => m.role !== "system")
-        .map((m) => ({ role: m.role, content: m.content })),
+        .map((m) => ({
+          role: m.role,
+          content: m.role === "assistant" ? stripCitationMarkers(m.content) : m.content,
+        })),
       { role: "user", content: input.userMessage },
     ];
 
@@ -114,6 +118,7 @@ export class GenerationService {
       rejectCitations = reject;
     });
 
+    const self = this;
     async function* tapped(): AsyncGenerator<string> {
       try {
         for await (const delta of result.textStream) {
@@ -124,7 +129,8 @@ export class GenerationService {
         if (accumulated.length === 0) {
           throw new Error("Generation produced no tokens (empty model response)");
         }
-        resolveCitations(fallbackCitations(accumulated, input.retrievedChunks));
+        const block = await self.extractCitations(accumulated, input.retrievedChunks);
+        resolveCitations(block);
       } catch (err) {
         rejectCitations(err);
         throw err;
@@ -155,7 +161,10 @@ export class GenerationService {
     const messages: CoreMessage[] = [
       ...input.history
         .filter((m): m is ChatMessage & { role: "user" | "assistant" } => m.role !== "system")
-        .map((m) => ({ role: m.role, content: m.content })),
+        .map((m) => ({
+          role: m.role,
+          content: m.role === "assistant" ? stripCitationMarkers(m.content) : m.content,
+        })),
       { role: "user", content: input.userMessage },
     ];
 
@@ -165,13 +174,20 @@ export class GenerationService {
       getDocumentSummary: this.summaryTool.build(collected),
     };
 
+    // Hard timeout so a stalled provider surfaces as a clean error event
+    // instead of hanging the SSE connection until the browser gives up.
+    const abortCtrl = new AbortController();
+    const timeoutMs = 60_000;
+    const timeoutId = setTimeout(() => abortCtrl.abort(new Error(`agent streamText timed out after ${timeoutMs}ms`)), timeoutMs);
+
     let capturedError: unknown = null;
     const result = streamText({
-      model: this.provider.chatModel(),
+      model: this.provider.agentModel(),
       system,
       messages,
       tools,
       maxSteps: this.config.env.AGENT_MAX_STEPS,
+      abortSignal: abortCtrl.signal,
       onError: ({ error }) => {
         this.logger.error(`agent streamText failed: ${error instanceof Error ? error.message : String(error)}`);
         capturedError = error;
@@ -236,16 +252,76 @@ export class GenerationService {
         }
         self.logger.log(`Agent turn complete: ${collected.length} chunk(s) retrieved across tool calls`);
         resolveChunks(collected);
-        resolveCitations(fallbackCitations(accumulated, collected));
+        const block = await self.extractCitations(accumulated, collected);
+        resolveCitations(block);
       } catch (err) {
         textChannel.fail(err);
         toolChannel.fail(err);
         rejectChunks(err);
         rejectCitations(err);
+      } finally {
+        clearTimeout(timeoutId);
       }
     })();
 
     return { textStream: textChannel.iter, citations, collectedChunks, toolEvents: toolChannel.iter };
+  }
+
+  /**
+   * Build the structured citations block via `generateObject`. Required by the
+   * spec: citations are emitted as a typed payload AFTER the streamed answer.
+   * If the model returns malformed JSON we fall through to a deterministic
+   * regex-based extraction over the answer's `[N]` markers so the turn never
+   * fails on a structured-output hiccup.
+   */
+  private async extractCitations(answer: string, chunks: ScoredChunk[]): Promise<CitationsBlock> {
+    if (!/\[\d+\]/.test(answer) || chunks.length === 0) {
+      return { citations: [] };
+    }
+
+    const sources = formatRetrievedContext(chunks);
+    const prompt = await this.prompts.load("system", "citations", { answer, sources });
+
+    try {
+      const { object } = await generateObject({
+        model: this.provider.chatModel(),
+        schema: CitationsBlockSchema,
+        prompt,
+        mode: "json",
+      });
+      return object;
+    } catch (err) {
+      const e = err as Error & { text?: string };
+      if (typeof e.text === "string") {
+        const recovered = tryParseFencedJson(e.text);
+        if (recovered) {
+          const parsed = CitationsBlockSchema.safeParse(recovered);
+          if (parsed.success) {
+            this.logger.log("Recovered citations from fenced JSON in model output");
+            return parsed.data;
+          }
+        }
+      }
+      this.logger.warn(`generateObject citations failed, falling back to regex extraction: ${e.message}`);
+      return fallbackCitations(answer, chunks);
+    }
+  }
+}
+
+/**
+ * Strip ``` fences and surrounding prose, then JSON.parse the inner body.
+ * Some models (gemma4 in particular) wrap structured output in markdown
+ * fences despite instructions; this lets us recover before falling through
+ * to deterministic regex extraction.
+ */
+function tryParseFencedJson(raw: string): unknown | null {
+  const trimmed = raw.trim();
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed);
+  const candidate = fenced?.[1]?.trim() ?? trimmed;
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
   }
 }
 
@@ -318,9 +394,19 @@ function formatRetrievedContext(chunks: ScoredChunk[]): string {
 }
 
 /**
- * Build the citation block directly from the inline `[N]` markers the model
- * wrote. Runs synchronously — no extra LLM call — so the UI can mount
- * clickable citation pills the moment tokens finish streaming.
+ * Strip inline `[N]` citation markers from a previous assistant turn before
+ * replaying it as history. The numbers refer to chunks that were collected
+ * in that earlier turn and have no meaning in the new turn's context — and
+ * they're pure token noise to the model.
+ */
+function stripCitationMarkers(text: string): string {
+  return text.replace(/\s*\[\d+\]/g, "").replace(/[ \t]{2,}/g, " ").trim();
+}
+
+/**
+ * Deterministic citation builder from inline `[N]` markers. Used as a
+ * fallback when `generateObject` fails or returns malformed JSON — keeps
+ * the turn resilient instead of failing the whole stream.
  */
 function fallbackCitations(answer: string, chunks: ScoredChunk[]): CitationsBlock {
   const ids = new Set<number>();
