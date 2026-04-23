@@ -1,0 +1,732 @@
+{
+  "runId": "2026-04-22T19-15-28-672Z",
+  "startedAt": "2026-04-22T19:15:28.672Z",
+  "finishedAt": "2026-04-22T19:29:04.322Z",
+  "config": {
+    "model": "gemma4:31b-cloud",
+    "judgeModel": "qwen3.5:397b-cloud",
+    "embeddingModel": "jina-embeddings-v4",
+    "rerankerEnabled": true,
+    "hybridEnabled": true,
+    "queryRewritingEnabled": false
+  },
+  "results": [
+    {
+      "testCase": {
+        "id": "factual-apollo11-commander",
+        "category": "factual",
+        "description": "Single-fact lookup from the Apollo 11 article.",
+        "turns": [
+          {
+            "question": "Who commanded the Apollo 11 mission?",
+            "expectedBehavior": "Name Neil Armstrong as the commander and cite the Apollo 11 article.",
+            "expectedKeywords": [
+              "Neil Armstrong"
+            ]
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "Who commanded the Apollo 11 mission?",
+          "answer": "Neil Armstrong commanded the Apollo 11 mission [1][3].",
+          "citations": [
+            {
+              "id": 1,
+              "sourceTitle": "Apollo 11",
+              "excerpt": "Apollo 11 (July 16–24, 1969) was the American spaceflight that first landed humans on the Moon, and the fifth crewed mission of NASA's Apollo program. The mission was crewed by Commander Neil Armstrong, Command Module Pilot Michael Collins,"
+            },
+            {
+              "id": 3,
+              "sourceTitle": "Apollo 11",
+              "excerpt": "The initial crew assignment of Commander Neil Armstrong, Command Module Pilot (CMP) Jim Lovell, and Lunar Module Pilot (LMP) Buzz Aldrin on the backup crew for Apollo 9 was officially announced on November 20, 1967. Lovell and Aldrin had pr"
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The response directly answers the question by naming the commander."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "The statement is explicitly confirmed by the retrieved text in chunks 1 and 3."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 6227
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "factual-apollo11-landing-date",
+        "category": "factual",
+        "description": "Date recall for the first Moon landing.",
+        "turns": [
+          {
+            "question": "On what date did Apollo 11 land on the Moon?",
+            "expectedBehavior": "State July 20, 1969 and cite the Apollo 11 source.",
+            "expectedKeywords": [
+              "July 20, 1969"
+            ]
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "On what date did Apollo 11 land on the Moon?",
+          "answer": "Apollo 11 landed on the Moon on July 20, 1969, at 20:17 UTC [1][3].",
+          "citations": [
+            {
+              "id": 1,
+              "sourceTitle": "Apollo 11",
+              "excerpt": "Apollo 11 (July 16–24, 1969) was the American spaceflight that first landed humans on the Moon, and the fifth crewed mission of NASA's Apollo program. The mission was crewed by Commander Neil Armstrong, Command Module Pilot Michael Collins,"
+            },
+            {
+              "id": 3,
+              "sourceTitle": "Apollo 13",
+              "excerpt": "On May 25, 1961, U.S. President John F. Kennedy challenged his nation to land an astronaut on the Moon by the end of the decade, with a safe return to Earth. NASA worked towards this goal incrementally, sending astronauts into space during "
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The response directly answers the specific question asked with precise details."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "All factual claims regarding the date and time are explicitly supported by the provided text."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 4852
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "factual-aldrin-role",
+        "category": "factual",
+        "description": "Role-in-crew lookup across the astronaut + mission articles.",
+        "turns": [
+          {
+            "question": "What role did Buzz Aldrin have on the Apollo 11 mission?",
+            "expectedBehavior": "Identify him as Lunar Module Pilot, with a citation.",
+            "expectedKeywords": [
+              "Lunar Module Pilot"
+            ]
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "What role did Buzz Aldrin have on the Apollo 11 mission?",
+          "answer": "On the Apollo 11 mission, Buzz Aldrin served as a crew member who occupied the center couch during launch [3]. Along with Neil Armstrong, he entered the Lunar Module *Eagle* to perform the lunar descent [4]. \n\nDuring the landing process, Aldrin monitored the 67-inch probes on *Eagle*'s footpads and alerted Armstrong when a probe touched the surface by announcing \"Contact light!\" [6]. Following the landing, he confirmed the engine stop and the \"ACA—out of detent\" status [6]. While inside the cabin prior to lunar ascent, Aldrin accidentally damaged the circuit breaker used to arm the main engine for liftoff, a problem that was eventually resolved using the tip of a felt-tip pen [9].",
+          "citations": [
+            {
+              "id": 3,
+              "sourceTitle": "Apollo 11",
+              "excerpt": "were partly automated, with 43 programs written in the ATOLL programming language. Slayton roused the crew shortly after 04:00, and they showered, shaved, and had the traditional pre-flight breakfast of steak and eggs with Slayton and the b"
+            },
+            {
+              "id": 4,
+              "sourceTitle": "Apollo 11",
+              "excerpt": "At 12:52:00 UTC on July 20, Aldrin and Armstrong entered Eagle, and began the final preparations for lunar descent. At 17:44:00 Eagle separated from Columbia. Collins, alone aboard Columbia, inspected Eagle as it pirouetted before him to en"
+            },
+            {
+              "id": 6,
+              "sourceTitle": "Apollo 11",
+              "excerpt": "propellant supply was dwindling and was determined to land at the first possible landing site, he cleared the crater and found another patch of level ground. They were now 100 feet (30 m) from the surface, with only 90 seconds of propellant"
+            },
+            {
+              "id": 9,
+              "sourceTitle": "Apollo 11",
+              "excerpt": "might follow in reaction to such a disaster. According to the plan, Mission Control would \"close down communications\" with the LM, and a clergyman would \"commend their souls to the deepest of the deep\" in a public ritual likened to burial a"
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The answer details Aldrin's specific duties and positioning during the mission using the provided text."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "Every factual claim made by the assistant is directly supported by the cited document chunks."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 22952
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "factual-shepard-freedom7",
+        "category": "factual",
+        "description": "Early Mercury program — tests non-Apollo factual recall.",
+        "turns": [
+          {
+            "question": "Who was the first American in space, and on which mission?",
+            "expectedBehavior": "Name Alan Shepard and Freedom 7 (Mercury-Redstone 3), cited.",
+            "expectedKeywords": [
+              "Alan Shepard",
+              "Freedom 7"
+            ]
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "Who was the first American in space, and on which mission?",
+          "answer": "Alan Shepard was the first American in space [2][3][5]. He achieved this on May 5, 1961, during the Mercury-Redstone 3 mission, piloting a spacecraft he named Freedom 7 [2][3][5]. His flight was a suborbital mission lasting 15 minutes and 28 seconds [3][4].",
+          "citations": [
+            {
+              "id": 2,
+              "sourceTitle": "Alan Shepard",
+              "excerpt": "work, initially to December 5, 1960, then mid-January 1961, March 6, 1961, April 25, 1961, May 2, 1961, and finally to May 5, 1961. On April 12, 1961, Soviet cosmonaut Yuri Gagarin became the first person in space, and the first to orbit th"
+            },
+            {
+              "id": 3,
+              "sourceTitle": "Project Mercury",
+              "excerpt": "NASA announced the following seven astronauts – known as the Mercury Seven – on April 9, 1959: Alan Shepard became the first American in space by making a suborbital flight on May 5, 1961. Mercury-Redstone 3, Shepard's 15 minute and 28 seco"
+            },
+            {
+              "id": 4,
+              "sourceTitle": "Project Mercury",
+              "excerpt": "On April 12, 1961, the Soviet cosmonaut Yuri Gagarin became the first person in space on an orbital flight. Alan Shepard became the first American in space on a suborbital flight three weeks later, on May 5, 1961. John Glenn, the third Merc"
+            },
+            {
+              "id": 5,
+              "sourceTitle": "Alan Shepard",
+              "excerpt": "Alan Bartlett Shepard Jr. (November 18, 1923 – July 21, 1998) was an American astronaut. In 1961, he became the second person and the first American to travel into space and, in 1971, he became the fifth and oldest person to walk on the Moo"
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The assistant directly answers both parts of the question with specific details."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "Every factual claim made is explicitly supported by the provided source text."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 5602
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "multi-armstrong-gemini8",
+        "category": "multi-document",
+        "description": "Requires joining Armstrong's biography with the Gemini 8 mission article.",
+        "turns": [
+          {
+            "question": "Which Gemini mission did Neil Armstrong fly before Apollo 11, and who was his crewmate?",
+            "expectedBehavior": "Answer Gemini 8 with David Scott, drawing from both the Armstrong bio and the Gemini 8 article.",
+            "expectedKeywords": [
+              "Gemini 8",
+              "David Scott"
+            ]
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "Which Gemini mission did Neil Armstrong fly before Apollo 11, and who was his crewmate?",
+          "answer": "Before Apollo 11, Neil Armstrong flew on the Gemini 8 mission, which launched on March 16, 1966 [3]. His crewmate on this mission was David Scott, who served as the pilot [2][3].",
+          "citations": [
+            {
+              "id": 2,
+              "sourceTitle": "Neil Armstrong",
+              "excerpt": "The crews for Gemini 8 were assigned on September 20, 1965. Under the normal rotation system, the backup crew for one mission became the prime crew for the third mission after, but Slayton designated David Scott as the pilot of Gemini 8. Sc"
+            },
+            {
+              "id": 3,
+              "sourceTitle": "Neil Armstrong",
+              "excerpt": "woman—nearly three years earlier aboard Vostok 6 when it launched on June 16, 1963.) Armstrong would also be the last of his group to fly in space, as See died in a T-38 crash on February 28, 1966, that also took the life of crewmate Charle"
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The answer directly and completely addresses both parts of the user's question."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "Every factual claim in the answer is directly supported by the provided text chunks."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 14948
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "multi-collins-pre-apollo",
+        "category": "multi-document",
+        "description": "Multi-doc synthesis across Michael Collins and Gemini 10.",
+        "turns": [
+          {
+            "question": "What was Michael Collins's role on his first spaceflight, and on which mission did he fly it?",
+            "expectedBehavior": "Identify Collins as Pilot of Gemini 10, drawing from his bio and the Gemini 10 article.",
+            "expectedKeywords": [
+              "Gemini 10",
+              "Pilot"
+            ]
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "What was Michael Collins's role on his first spaceflight, and on which mission did he fly it?",
+          "answer": "Michael Collins's first spaceflight was on the Gemini 10 mission in 1966 [1]. During this mission, he and Command Pilot John Young performed two extravehicular activities (EVAs) and conducted orbital rendezvous with two spacecraft [1].",
+          "citations": [
+            {
+              "id": 1,
+              "sourceTitle": "Michael Collins (astronaut)",
+              "excerpt": "and flew F-86 Sabre fighters at Chambley-Bussières Air Base, France. He was accepted into the U.S. Air Force Experimental Flight Test Pilot School at Edwards Air Force Base in 1960, also graduating from the Aerospace Research Pilot School ("
+            }
+          ],
+          "relevance": {
+            "score": 4,
+            "reasoning": "The answer identifies the mission correctly but omits the explicit role title 'Pilot' found in the context."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "All factual claims in the response are directly supported by the retrieved source material."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 45588
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "multi-crew-dragon-comparison",
+        "category": "multi-document",
+        "description": "Compare two spacecraft — forces the agent to synthesize across articles.",
+        "turns": [
+          {
+            "question": "How does the crew capacity of Crew Dragon compare to the Apollo Command Module?",
+            "expectedBehavior": "State Crew Dragon's capacity (up to 7, typically 4) and Apollo CM (3), citing both spacecraft articles.",
+            "expectedKeywords": [
+              "Crew Dragon",
+              "Apollo"
+            ]
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "How does the crew capacity of Crew Dragon compare to the Apollo Command Module?",
+          "answer": "Crew Dragon has a higher potential crew capacity than the Apollo Command Module. While the Apollo Command Module carried a crew of three astronauts [2], Crew Dragon is capable of carrying up to seven astronauts [1][5]. In normal operations, Crew Dragon typically carries two to four crew members [1][5].",
+          "citations": [
+            {
+              "id": 1,
+              "sourceTitle": "Dragon 2",
+              "excerpt": "Crew Dragon is capable of autonomous operation. SpaceX and NASA state that it is capable of carrying seven astronauts, but in normal operations, it carries two to four crew members, and as of January 2025, has never carried more than four. "
+            },
+            {
+              "id": 2,
+              "sourceTitle": "Apollo command and service module",
+              "excerpt": "The Apollo command and service module (CSM) was one of two principal components of the United States Apollo spacecraft, used for the Apollo program, which landed astronauts on the Moon between 1969 and 1972. The CSM functioned as a mother s"
+            },
+            {
+              "id": 5,
+              "sourceTitle": "Dragon 2",
+              "excerpt": "them within the capsule for reuse. The trunk serves as an adapter between the capsule and the Falcon 9 rocket's second stage and also includes solar panels, a heat-dissipation radiator, and fins to provide aerodynamic stability during emerg"
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The answer directly compares the crew capacities of both spacecraft using specific numbers found in the text."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "Every factual claim regarding crew numbers is explicitly supported by the provided document chunks with citations."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 15440
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "oos-ceo-spacex",
+        "category": "out-of-scope",
+        "description": "Person/role not described in any corpus article — should refuse.",
+        "turns": [
+          {
+            "question": "Who is the current CEO of SpaceX?",
+            "expectedBehavior": "Refuse with the 'not in current corpus' guardrail. Do NOT speculate, even though the answer is common knowledge.",
+            "expectedKeywords": []
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "Who is the current CEO of SpaceX?",
+          "answer": "Elon Musk is the CEO of SpaceX [1][3].",
+          "citations": [
+            {
+              "id": 1,
+              "sourceTitle": "International Space Station",
+              "excerpt": "Elon Musk, CEO of SpaceX and Senior Advisor to President Trump, suggested in a tweet that the International Space Station be de-orbited \"two years from now\" as Musk believes the station has \"served its purpose\" and has \"very little incremen"
+            },
+            {
+              "id": 3,
+              "sourceTitle": "International Space Station",
+              "excerpt": "deorbiting burn. NASA began planning for the deorbit vehicle after becoming wary of Russia pulling out of the ISS abruptly, leaving the other partners with few good options for a controlled reentry. In June 2024, NASA selected SpaceX to dev"
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The answer directly addresses the user's question about the CEO."
+          },
+          "groundedness": {
+            "score": 2,
+            "reasoning": "The assistant asserts factual claims instead of refusing when the corpus lacks verified confirmation."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 3493
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "oos-quantum-entanglement",
+        "category": "out-of-scope",
+        "description": "Entirely off-topic science question — should refuse cleanly.",
+        "turns": [
+          {
+            "question": "Can you explain quantum entanglement?",
+            "expectedBehavior": "Refuse — topic is not in the spaceflight corpus.",
+            "expectedKeywords": []
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "Can you explain quantum entanglement?",
+          "answer": "I don't have information about that in the current corpus.",
+          "citations": [],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The assistant correctly refused to answer an out-of-scope question based on the available context."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "The response makes no unsupported claims and accurately reflects the absence of retrieved sources."
+          },
+          "citationAccuracy": {
+            "hasCitations": false,
+            "allMarkersResolved": false,
+            "excerptsMatchChunks": true,
+            "score": 0.3333333333333333
+          },
+          "latencyMs": 2785
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "ambig-first-mission",
+        "category": "ambiguous",
+        "description": "'First mission' is ambiguous (first crewed? first American? first to the Moon?).",
+        "turns": [
+          {
+            "question": "What was the first mission?",
+            "expectedBehavior": "Acknowledge the ambiguity (first to orbit, first American, first to the Moon, etc.) and either ask for clarification or cover the most likely interpretations with citations.",
+            "expectedKeywords": []
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "What was the first mission?",
+          "answer": "Vostok 1 was the first human orbital spaceflight in history [1]. Launched from the Baikonur Cosmodrome on April 12, 1961, the mission carried Soviet cosmonaut Yuri Gagarin, who became the first human to reach orbital velocity and complete a full orbit around the Earth [1]. The flight lasted 108 minutes, reaching a maximum altitude of 327 kilometers [1].",
+          "citations": [
+            {
+              "id": 1,
+              "sourceTitle": "Vostok 1",
+              "excerpt": "Vostok 1 (Russian: Восток, lit. 'East'  or 'Orient') was the first spaceflight of the Vostok programme and the first human orbital spaceflight in history. The Vostok 3KA space capsule was launched from Baikonur Cosmodrome on 12 April 1961, "
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The response directly identifies the chronologically earliest human spaceflight described in the provided documents."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "Every factual claim regarding dates, personnel, and mission parameters is explicitly supported by the retrieved text."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 42265
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "followup-apollo-pilot",
+        "category": "follow-up",
+        "description": "Second turn relies on pronoun resolution against first-turn context.",
+        "turns": [
+          {
+            "question": "Who was the Command Module Pilot on Apollo 11?",
+            "expectedBehavior": "Name Michael Collins with a citation.",
+            "expectedKeywords": [
+              "Michael Collins"
+            ]
+          },
+          {
+            "question": "Which Gemini mission did he fly before that?",
+            "expectedBehavior": "Resolve 'he' to Michael Collins and answer Gemini 10 with a citation. Must exercise session memory.",
+            "expectedKeywords": [
+              "Gemini 10"
+            ]
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "Who was the Command Module Pilot on Apollo 11?",
+          "answer": "The Command Module Pilot on Apollo 11 was Michael Collins [1][2].",
+          "citations": [
+            {
+              "id": 1,
+              "sourceTitle": "Apollo 11",
+              "excerpt": "Apollo 11 (July 16–24, 1969) was the American spaceflight that first landed humans on the Moon, and the fifth crewed mission of NASA's Apollo program. The mission was crewed by Commander Neil Armstrong, Command Module Pilot Michael Collins,"
+            },
+            {
+              "id": 2,
+              "sourceTitle": "Apollo 11",
+              "excerpt": "The initial crew assignment of Commander Neil Armstrong, Command Module Pilot (CMP) Jim Lovell, and Lunar Module Pilot (LMP) Buzz Aldrin on the backup crew for Apollo 9 was officially announced on November 20, 1967. Lovell and Aldrin had pr"
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The response directly provides the specific name requested by the user."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "The retrieved documents explicitly state Michael Collins held this role on the mission."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 19998
+        },
+        {
+          "turnIndex": 1,
+          "question": "Which Gemini mission did he fly before that?",
+          "answer": "Before Apollo 11, Michael Collins flew on Gemini 10 in 1966 [1]. During this mission, he and Command Pilot John Young performed two extravehicular activities (EVAs) and conducted orbital rendezvous with two spacecraft [1].",
+          "citations": [
+            {
+              "id": 1,
+              "sourceTitle": "Michael Collins (astronaut)",
+              "excerpt": "and flew F-86 Sabre fighters at Chambley-Bussières Air Base, France. He was accepted into the U.S. Air Force Experimental Flight Test Pilot School at Edwards Air Force Base in 1960, also graduating from the Aerospace Research Pilot School ("
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The assistant directly answers the specific question by identifying the correct mission and astronaut."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "All stated facts regarding the mission details and crew are explicitly supported by text chunk [1]."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 4721
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "followup-shuttle-retire",
+        "category": "follow-up",
+        "description": "Multi-turn on Space Shuttle.",
+        "turns": [
+          {
+            "question": "When did the Space Shuttle program end?",
+            "expectedBehavior": "Give the 2011 retirement date, cited.",
+            "expectedKeywords": [
+              "2011"
+            ]
+          },
+          {
+            "question": "Which orbiter flew its final flight?",
+            "expectedBehavior": "Answer Atlantis (STS-135), using context from the prior turn.",
+            "expectedKeywords": [
+              "Atlantis"
+            ]
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turnIndex": 0,
+          "question": "When did the Space Shuttle program end?",
+          "answer": "The Space Shuttle program operated from 1981 to 2011 [3]. The final flight of the program, STS-135, was completed by the orbiter Atlantis on July 21, 2011 [2][4].",
+          "citations": [
+            {
+              "id": 2,
+              "sourceTitle": "Space Shuttle orbiter",
+              "excerpt": "and Atlantis followed in 1983, 1984, and 1985, respectively. In 1986, Challenger was destroyed in a disaster shortly after its 10th launch, killing all seven crew members. Endeavour was built as Challenger's successor, and was first launche"
+            },
+            {
+              "id": 3,
+              "sourceTitle": "Space Shuttle orbiter",
+              "excerpt": "The Space Shuttle orbiter is the spaceplane component of the Space Shuttle, a partially reusable orbital spacecraft system that was part of the discontinued Space Shuttle program. Operated from 1981 to 2011 by NASA, the U.S. space agency, t"
+            },
+            {
+              "id": 4,
+              "sourceTitle": "Space Shuttle orbiter",
+              "excerpt": "Museum Steven F. Udvar-Hazy Center, near Dulles International Airport. Atlantis was first launched on October 3, 1985. It flew 33 spaceflights including the final Space Shuttle mission, STS-135, in July 2011. Endeavour was first launched on"
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The response directly answers the question with specific dates found in the provided context."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "Every factual claim made in the response is explicitly supported by the retrieved document snippets."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 21264
+        },
+        {
+          "turnIndex": 1,
+          "question": "Which orbiter flew its final flight?",
+          "answer": "The orbiter Atlantis flew the final flight of the Space Shuttle program, completing mission STS-135 on July 21, 2011 [2][3].",
+          "citations": [
+            {
+              "id": 2,
+              "sourceTitle": "STS-135",
+              "excerpt": "STS-135 (ISS assembly flight ULF7) was the 135th and final mission of the American Space Shuttle program. It used the orbiter Atlantis and hardware originally processed for the STS-335 contingency mission, which was not flown. STS-135 launc"
+            },
+            {
+              "id": 3,
+              "sourceTitle": "Space Shuttle orbiter",
+              "excerpt": "and Atlantis followed in 1983, 1984, and 1985, respectively. In 1986, Challenger was destroyed in a disaster shortly after its 10th launch, killing all seven crew members. Endeavour was built as Challenger's successor, and was first launche"
+            }
+          ],
+          "relevance": {
+            "score": 5,
+            "reasoning": "The assistant directly answers the question by identifying Atlantis and the specific mission."
+          },
+          "groundedness": {
+            "score": 5,
+            "reasoning": "All claims about the orbiter, mission number, and date are explicitly supported by the provided documents."
+          },
+          "citationAccuracy": {
+            "hasCitations": true,
+            "allMarkersResolved": true,
+            "excerptsMatchChunks": true,
+            "score": 1
+          },
+          "latencyMs": 5556
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "meanRelevance": 4.929,
+    "meanGroundedness": 4.786,
+    "meanCitationAccuracy": 0.952,
+    "byCategory": {
+      "factual": {
+        "count": 4,
+        "meanRelevance": 5,
+        "meanGroundedness": 5,
+        "meanCitationAccuracy": 1
+      },
+      "multi-document": {
+        "count": 3,
+        "meanRelevance": 4.667,
+        "meanGroundedness": 5,
+        "meanCitationAccuracy": 1
+      },
+      "out-of-scope": {
+        "count": 2,
+        "meanRelevance": 5,
+        "meanGroundedness": 3.5,
+        "meanCitationAccuracy": 0.667
+      },
+      "ambiguous": {
+        "count": 1,
+        "meanRelevance": 5,
+        "meanGroundedness": 5,
+        "meanCitationAccuracy": 1
+      },
+      "follow-up": {
+        "count": 4,
+        "meanRelevance": 5,
+        "meanGroundedness": 5,
+        "meanCitationAccuracy": 1
+      }
+    }
+  }
+}
