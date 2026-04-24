@@ -31,22 +31,28 @@ export class GetDocumentSummaryTool {
           .describe("Exact source title as it appears in the corpus (e.g. 'Apollo 11', 'Neil Armstrong', 'Space Shuttle')."),
       }),
       execute: async ({ sourceTitle }) => {
-        const chunks = await this.retrieval.retrieve({
-          query: sourceTitle,
-          finalK: 10,
-          filter: { sourceTitle },
-        });
-        this.logger.log(`getDocumentSummary(sourceTitle="${sourceTitle}") → ${chunks.length} chunks`);
-        if (chunks.length === 0) {
+        try {
+          const chunks = await this.retrieval.retrieve({
+            query: sourceTitle,
+            finalK: 10,
+            filter: { sourceTitle },
+          });
+          this.logger.log(`getDocumentSummary(sourceTitle="${sourceTitle}") → ${chunks.length} chunks`);
+          if (chunks.length === 0) {
+            return {
+              found: false,
+              message: `No document titled "${sourceTitle}" in the corpus. Try searchDocuments with a keyword query instead.`,
+            };
+          }
           return {
-            found: false,
-            message: `No document titled "${sourceTitle}" in the corpus. Try searchDocuments with a keyword query instead.`,
+            found: true,
+            chunks: chunks.map((c) => formatForAgent(c, collectedChunks)),
           };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.error(`getDocumentSummary failed: ${message}`);
+          return { error: `Lookup failed: ${message}. Ask the user to retry.` };
         }
-        return {
-          found: true,
-          chunks: chunks.map((c) => formatForAgent(c, collectedChunks)),
-        };
       },
     });
   }

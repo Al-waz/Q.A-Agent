@@ -36,15 +36,24 @@ export class SearchDocumentsTool {
           .describe("Narrow the search to one document type when you know the answer lives there."),
       }),
       execute: async ({ query, limit, sourceType }) => {
-        const chunks = await this.retrieval.retrieve({
-          query,
-          finalK: limit,
-          ...(sourceType ? { filter: { sourceType } } : {}),
-        });
-        this.logger.log(
-          `searchDocuments(query="${truncate(query, 60)}", limit=${limit}${sourceType ? `, sourceType=${sourceType}` : ""}) → ${chunks.length} chunks`,
-        );
-        return chunks.map((c) => formatForAgent(c, collectedChunks));
+        try {
+          const chunks = await this.retrieval.retrieve({
+            query,
+            finalK: limit,
+            ...(sourceType ? { filter: { sourceType } } : {}),
+          });
+          this.logger.log(
+            `searchDocuments(query="${truncate(query, 60)}", limit=${limit}${sourceType ? `, sourceType=${sourceType}` : ""}) → ${chunks.length} chunks`,
+          );
+          return chunks.map((c) => formatForAgent(c, collectedChunks));
+        } catch (err) {
+          // Don't let transient retrieval failures (Jina fetch timeout,
+          // Weaviate hiccup) crash the stream via AI_ToolExecutionError.
+          // Return a structured error so the model can recover or apologize.
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.error(`searchDocuments failed: ${message}`);
+          return { error: `Search failed: ${message}. Ask the user to retry, or answer from prior evidence if possible.` };
+        }
       },
     });
   }

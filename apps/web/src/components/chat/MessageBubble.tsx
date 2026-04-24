@@ -1,5 +1,8 @@
 "use client";
 
+import { Fragment, type ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import type { Citation } from "@qa/schemas";
 import type { ChatTurn } from "@/hooks/useChatStream";
@@ -8,6 +11,7 @@ import { ToolCallBadge } from "./ToolCallBadge";
 
 export function MessageBubble({ turn, streaming }: { turn: ChatTurn; streaming: boolean }): JSX.Element {
   const isUser = turn.role === "user";
+  const streamingText = streaming && !turn.textDone;
   return (
     <div className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
       <div className={cn("flex max-w-[85%] flex-col gap-2", isUser ? "items-end" : "items-start")}>
@@ -21,9 +25,9 @@ export function MessageBubble({ turn, streaming }: { turn: ChatTurn; streaming: 
 
         <div
           className={cn(
-            "rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
+            "rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words",
             isUser
-              ? "bg-primary text-primary-foreground"
+              ? "whitespace-pre-wrap bg-primary text-primary-foreground"
               : "border border-border bg-card text-card-foreground",
           )}
         >
@@ -33,10 +37,16 @@ export function MessageBubble({ turn, streaming }: { turn: ChatTurn; streaming: 
               <Dot delay={150} />
               <Dot delay={300} />
             </span>
+          ) : isUser ? (
+            turn.content
           ) : (
-            renderWithCitations(turn.content, turn.citations ?? [], streaming && !turn.textDone)
+            <AssistantMarkdown
+              text={turn.content}
+              citations={turn.citations ?? []}
+              streamingText={streamingText}
+            />
           )}
-          {streaming && !isUser && turn.content.length > 0 && !turn.textDone ? (
+          {streamingText && !isUser && turn.content.length > 0 ? (
             <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-current align-middle" />
           ) : null}
         </div>
@@ -46,40 +56,112 @@ export function MessageBubble({ turn, streaming }: { turn: ChatTurn; streaming: 
 }
 
 /**
- * Walk the answer text and swap each `[n]` marker for a pill. If citation
- * data is already attached to the turn, render a clickable CitationPill;
- * otherwise render a visually-identical placeholder. This avoids the flash
- * of raw `[n]` text during the gap between tokens finishing and the
- * citations event arriving.
+ * Markdown renderer for assistant answers. Delegates block layout to
+ * react-markdown (+ remark-gfm for tables / task lists / strikethrough) and
+ * walks the inline children of every element to swap `[N]` citation markers
+ * for clickable pills — or inert placeholders while `streamingText` is true
+ * and citations haven't arrived yet.
  *
- * When `streamingText` is true (tokens still flowing), we also strip any
- * trailing incomplete `[` or `[123` at the very end of the text so the
- * partial marker doesn't show as raw characters before the closing `]`
- * token arrives and swaps it for a pill.
+ * While tokens are still flowing we also strip a dangling trailing `[` or
+ * `[12` so the partial marker never flashes as raw text between one streamed
+ * chunk and the next. Combined with markdown's natural handling of unclosed
+ * `**…` / `_…_` mid-stream, the result feels indistinguishable from a
+ * finalized message.
  */
-function renderWithCitations(
-  text: string,
-  citations: Citation[],
-  streamingText: boolean,
-): React.ReactNode[] {
+function AssistantMarkdown({
+  text,
+  citations,
+  streamingText,
+}: {
+  text: string;
+  citations: Citation[];
+  streamingText: boolean;
+}): JSX.Element {
   const effective = streamingText ? text.replace(/\[\d*$/, "") : text;
   const byId = new Map(citations.map((c) => [c.id, c] as const));
-  const parts: React.ReactNode[] = [];
+
+  const inline = (children: ReactNode): ReactNode => {
+    if (typeof children === "string") return injectCitations(children, byId);
+    if (Array.isArray(children)) {
+      return children.map((c, i) => <Fragment key={i}>{inline(c)}</Fragment>);
+    }
+    return children;
+  };
+
+  return (
+    <div className="markdown-body">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => <p className="mb-2 last:mb-0">{inline(children)}</p>,
+          strong: ({ children }) => <strong className="font-semibold">{inline(children)}</strong>,
+          em: ({ children }) => <em className="italic">{inline(children)}</em>,
+          code: ({ children }) => (
+            <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-[0.85em]">{children}</code>
+          ),
+          pre: ({ children }) => (
+            <pre className="my-2 overflow-x-auto rounded-md bg-muted/60 p-2 text-xs">{children}</pre>
+          ),
+          ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
+          ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
+          li: ({ children }) => <li>{inline(children)}</li>,
+          h1: ({ children }) => <h3 className="mb-1 mt-3 text-base font-semibold">{inline(children)}</h3>,
+          h2: ({ children }) => <h3 className="mb-1 mt-3 text-base font-semibold">{inline(children)}</h3>,
+          h3: ({ children }) => <h4 className="mb-1 mt-2 text-sm font-semibold">{inline(children)}</h4>,
+          h4: ({ children }) => <h4 className="mb-1 mt-2 text-sm font-semibold">{inline(children)}</h4>,
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2 hover:text-primary"
+            >
+              {inline(children)}
+            </a>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="my-2 border-l-2 border-border pl-3 italic text-muted-foreground">
+              {children}
+            </blockquote>
+          ),
+          hr: () => <hr className="my-3 border-border" />,
+          table: ({ children }) => (
+            <div className="my-2 overflow-x-auto">
+              <table className="w-full border-collapse text-xs">{children}</table>
+            </div>
+          ),
+          th: ({ children }) => (
+            <th className="border border-border bg-muted/40 px-2 py-1 text-left font-semibold">{inline(children)}</th>
+          ),
+          td: ({ children }) => (
+            <td className="border border-border px-2 py-1">{inline(children)}</td>
+          ),
+        }}
+      >
+        {effective}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+function injectCitations(text: string, byId: Map<number, Citation>): ReactNode {
+  const parts: ReactNode[] = [];
   let last = 0;
   const re = /\[(\d+)\]/g;
   let match: RegExpExecArray | null;
-  while ((match = re.exec(effective)) !== null) {
-    if (match.index > last) parts.push(effective.slice(last, match.index));
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
     const id = Number(match[1]);
     const citation = byId.get(id);
     if (citation) {
-      parts.push(<CitationPill key={`c-${match.index}`} citation={citation} />);
+      parts.push(<CitationPill key={`c-${match.index}-${id}`} citation={citation} />);
     } else {
-      parts.push(<PendingCitationPill key={`p-${match.index}`} id={id} />);
+      parts.push(<PendingCitationPill key={`p-${match.index}-${id}`} id={id} />);
     }
     last = match.index + match[0].length;
   }
-  if (last < effective.length) parts.push(effective.slice(last));
+  if (last < text.length) parts.push(text.slice(last));
+  if (parts.length === 0) return text;
   return parts;
 }
 
