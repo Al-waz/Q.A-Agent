@@ -2,8 +2,6 @@
 
 Document Q&A agent built on a corpus of manned spaceflight articles. Retrieves relevant chunks, streams an answer with inline citations, maintains conversation memory, and ships with an evaluation harness scoring relevance, groundedness, and citation accuracy.
 
-> **Tappz AI Engineer take-home** — full architecture rationale and evaluation analysis below.
-
 ---
 
 ## Prerequisites
