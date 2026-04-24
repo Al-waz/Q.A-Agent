@@ -17,13 +17,18 @@ Document Q&A agent built on a corpus of manned spaceflight articles. Retrieves r
 
 ## Quickstart
 
+> **Repo access** — this repository is **private**. Reviewers need to be authenticated with a GitHub account that's been granted collaborator access before `git clone` will succeed.
+
+Commands are listed one per line so they run on any shell — Git Bash, macOS/Linux, PowerShell 5.1, PowerShell 7+, cmd.
+
 ```bash
-# 1. Clone & install
-git clone <repo-url> qa-agent && cd qa-agent
+# 1. Clone & install (commands on separate lines — Windows PowerShell 5.1 doesn't support && chaining)
+git clone https://github.com/Al-waz/Q.A-Agent.git qa-agent
+cd qa-agent
 pnpm install
 
 # 2. Environment
-cp .env.example .env
+cp .env.example .env    # Windows PowerShell: copy .env.example .env
 # Fill in LLM_API_KEY (Ollama Cloud) and JINA_API_KEY — everything else has sensible defaults.
 
 # 3. Start Weaviate (Docker Compose)
@@ -32,7 +37,7 @@ pnpm docker:up
 # 4. Fetch the corpus from Wikipedia into data/corpus/ (one-time, ~1 min)
 pnpm fetch-corpus
 
-# 5. Ingest the corpus into Weaviate (first run only; ~11 min — semantic chunking + late chunking over ~50 articles)
+# 5. Ingest the corpus into Weaviate (first run only; ~11–13 min — semantic chunking + late chunking over ~50 articles)
 pnpm ingest
 
 # 6. Run API + web in parallel
@@ -45,7 +50,7 @@ pnpm evaluate
 # → results written to eval/results/<iso>.json
 ```
 
-**Tearing down** when finished: `pnpm docker:down` stops Weaviate; add `-v` to also delete the vector data (`pnpm docker:reset`).
+**Tearing down** when finished: `pnpm docker:down` stops Weaviate; `pnpm docker:reset` also deletes the vector data.
 
 ---
 
@@ -56,8 +61,8 @@ pnpm evaluate
 | Backend | NestJS + Fastify | Spec-required. Module system maps cleanly to rubric axes. |
 | LLM SDK | Vercel AI SDK | Spec-required. `streamText` + `generateObject` + `tool()`. |
 | Language | TypeScript (strict) | Spec-required. End-to-end type safety via shared Zod schemas. |
-| LLM (chat) | `gemma4:31b-cloud` via Ollama Cloud | Google's latest open model, 256K documented context, native tool-calling support. Validated end-to-end by the eval harness. |
-| LLM (agent fallback) | `gemini-3-flash-preview:cloud` via Ollama Cloud | 1M context. Used only when `ENABLE_TOOL_USE=true`. Configurable via `AGENT_MODEL`. See [Model choices](#model-choices) below for why. |
+| LLM (eval / benchmark) | `gemma4:31b-cloud` via Ollama Cloud | Google's latest open model, 256K documented context, native tool-calling support. Used by the evaluation harness — this is what the committed benchmark JSONs are measuring. Configurable via `LLM_MODEL`. |
+| LLM (UI chat) | `gemini-3-flash-preview:cloud` via Ollama Cloud | 1M context. Used by the interactive chat endpoint for both the RAG and agent paths, regardless of `ENABLE_TOOL_USE`. Configurable via `AGENT_MODEL`. See [Model choices](#model-choices) below for the why. |
 | LLM (judge) | `qwen3.5:397b-cloud` via Ollama Cloud | Different family from the chat model to reduce self-bias. Low hallucination rate on factual tasks and reliable structured-output. |
 | Embedding | jina-embeddings-v4 | 2048-dim (Matryoshka-truncatable), 8K context, asymmetric `retrieval.passage` / `retrieval.query` task conditioning, native `late_chunking`. |
 | Reranker | jina-reranker-v2-base-multilingual | Cross-encoder with 1K doc context — reorders top-20 → top-5 using full query↔chunk attention instead of pooled similarity. |
@@ -68,13 +73,18 @@ pnpm evaluate
 
 ## Model choices
 
-### Chat model — `gemma4:31b-cloud`
+### Benchmark model — `gemma4:31b-cloud` (`LLM_MODEL`)
 
-Three reasons. First, native tool-calling support — required for the agentic `searchDocuments` and `getDocumentSummary` tools. Second, a 256K documented context window, large enough on paper to handle multiple retrieved chunks plus conversation history in a single pass. Third, available as an Ollama Cloud model, so no local GPU is required and the OpenAI-compatible endpoint makes it swappable with a single env var.
+Three reasons gemma4 was picked for the eval. First, native tool-calling support — required for the agentic `searchDocuments` and `getDocumentSummary` tools. Second, a 256K documented context window, large enough on paper to handle multiple retrieved chunks plus conversation history in a single pass. Third, available as an Ollama Cloud model, so no local GPU is required and the OpenAI-compatible endpoint makes it swappable with a single env var. The committed benchmark JSONs in [eval/results/](eval/results/) are all measured on this model.
 
-### Agent fallback — `gemini-3-flash-preview:cloud`
+### UI chat model — `gemini-3-flash-preview:cloud` (`AGENT_MODEL`)
 
-A real production constraint surfaced during interactive testing: Ollama Cloud's serving layer caps gemma4's *effective* context at roughly 2K tokens regardless of the model's documented 256K. The eval harness never exposes this — its longest case is two turns and the per-request payload stays small — but a multi-turn chat with `ENABLE_TOOL_USE=true` blows past the cap because every round-trip carries the full system prompt, tool schemas, accumulated history, and tool results. `gemini-3-flash-preview:cloud` (1M context) handles this load comfortably and is wired as the agent-only model via `AGENT_MODEL`. The RAG path keeps using `LLM_MODEL` (gemma4), which the eval validates.
+Two production constraints surfaced during interactive testing that the eval harness didn't expose:
+
+1. **Context cap on long sessions.** Ollama Cloud's serving layer caps gemma4's *effective* context at roughly 2K tokens regardless of the model's documented 256K. The eval harness never trips this — its longest case is two turns and the per-request payload stays small — but long-running interactive chat does, because every round-trip carries the full system prompt, accumulated history, retrieved context (or tool schemas + tool results in agent mode).
+2. **Silent empty responses.** Under certain prompts gemma4 returns a zero-token response without raising an error. The eval harness processes cases sequentially and rarely hits the specific timing / payload combination that triggers it; interactive UI usage exposes it quickly and breaks the chat without giving the user anything actionable.
+
+`gemini-3-flash-preview:cloud` (1M context) handles both loads comfortably, so the interactive chat endpoint uses it for **both** the RAG and agent paths regardless of `ENABLE_TOOL_USE`. This keeps the UI reliable without invalidating the benchmark — the eval harness still calls `LLM_MODEL` (gemma4) directly, and the JSONs in `eval/results/` remain reproducible.
 
 ### Judge model — `qwen3.5:397b-cloud`
 
@@ -110,7 +120,7 @@ Fixed-window and recursive character splitters are cheap but boundary-blind: the
 - **Structural breaks** — section headers (`H2`/`H3`) are hard boundaries. Chunks never span a section change, and each chunk carries its section path (`Legacy > Experiment results`) as metadata so retrieval can surface it, and as a prefix on the embedded text (`[Apollo 11 — Legacy > Experiment results]\n\n…`) so the vector inherits that context cheaply.
 - **Semantic breaks** — within a section, sentence-level embeddings are computed and a new chunk starts when cosine similarity drops below `SEMANTIC_SIMILARITY_THRESHOLD` (0.75) *and* the current buffer is already large enough to stand alone. That prevents the chunker from cutting a paragraph in half just because one sentence is stylistically different.
 
-Combined, chunks respect topic boundaries the way a human would, and the `[Title — Section]` prefix + late-chunking pass give the vector two orthogonal sources of cross-chunk context. The ingest cost is real (~11 min for 50 articles → 2389 chunks on the free tier) but it is a one-time pass; retrieval-time quality is the axis we optimize for.
+Combined, chunks respect topic boundaries the way a human would, and the `[Title — Section]` prefix + late-chunking pass give the vector two orthogonal sources of cross-chunk context. The ingest cost is real (~11–13 min for 50 articles → 2389 chunks on the free tier) but it is a one-time pass; retrieval-time quality is the axis we optimize for.
 
 ---
 
@@ -124,7 +134,7 @@ qa-agent/
 ├── packages/
 │   ├── schemas/             Zod schemas shared by api, web, evaluate
 │   └── prompts/             Prompt templates + loader (system, few-shots, guardrails)
-├── data/corpus/             Source markdown (committed)
+├── data/corpus/             Source markdown (gitignored; populated by `pnpm fetch-corpus`)
 ├── scripts/                 fetch-corpus, ingest, evaluate
 ├── eval/                    Test cases + results JSON
 ├── docker-compose.yml       Weaviate
@@ -161,8 +171,6 @@ qa-agent/
 - **Judge model:** `qwen3.5:397b-cloud` — scores relevance + groundedness against the same retrieved context the chat model saw. Intentionally a different family to reduce self-bias. Initial runs used DeepSeek but its structured-output reliability degraded on rerun (malformed JSON, occasional out-of-range scores), so it was swapped for Qwen3.5.
 
 ### Benchmarks
-
-## Evaluation Results
 
 Four runs were executed to measure the independent impact of tool use and query rewriting. Hybrid search and reranking were enabled across all runs.
 

@@ -88,6 +88,10 @@ export class ChatService {
       retrievedChunks: chunks,
       userName: "there",
       collectionName: this.config.env.WEAVIATE_COLLECTION,
+      // UI chat path uses the larger-context agent model so multi-turn
+      // interactive sessions don't hit serving-layer context caps. Eval
+      // harness keeps using the configured LLM_MODEL for reproducibility.
+      useAgentModel: true,
     });
 
     let fullAnswer = "";

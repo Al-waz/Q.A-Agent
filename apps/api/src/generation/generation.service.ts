@@ -18,6 +18,11 @@ export interface GenerateStreamInput {
   retrievedChunks: ScoredChunk[];
   userName: string;
   collectionName: string;
+  /** If true, use `provider.agentModel()` instead of `chatModel()`. The UI
+   * chat endpoint sets this so interactive multi-turn gets the larger-context
+   * model regardless of `ENABLE_TOOL_USE`. The eval harness leaves it false
+   * so benchmarks stay reproducible against the configured `LLM_MODEL`. */
+  useAgentModel?: boolean;
 }
 
 export interface GenerateAgentStreamInput {
@@ -101,7 +106,7 @@ export class GenerationService {
     // error event instead of silently delivering an empty answer.
     let capturedError: unknown = null;
     const result = streamText({
-      model: this.provider.chatModel(),
+      model: input.useAgentModel ? this.provider.agentModel() : this.provider.chatModel(),
       system,
       messages,
       onError: ({ error }) => {
