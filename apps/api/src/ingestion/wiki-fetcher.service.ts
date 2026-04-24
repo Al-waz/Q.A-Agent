@@ -18,7 +18,7 @@ import { CORPUS_DIR } from "../common/paths.js";
 
 const WIKI_API = "https://en.wikipedia.org/w/api.php";
 const WIKI_PAGE = "https://en.wikipedia.org/wiki";
-const USER_AGENT = "QA-Agent-Ingestion/0.1 (Tappz AI Engineer take-home; https://github.com/)";
+const USER_AGENT = "QA-Agent-Ingestion/0.1 (AI Engineer take-home; https://github.com/)";
 const REQUEST_DELAY_MS = 250;
 
 interface WikiExtractResponse {

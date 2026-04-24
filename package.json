@@ -2,7 +2,7 @@
   "name": "qa-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "Document Q&A Agent with RAG, streaming citations, and an evaluation harness — Tappz AI Engineer take-home.",
+  "description": "Document Q&A Agent with RAG, streaming citations, and an evaluation harness — AI Engineer take-home.",
   "packageManager": "pnpm@9.12.0",
   "engines": {
     "node": ">=20.11.0"
