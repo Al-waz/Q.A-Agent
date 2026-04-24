@@ -6,33 +6,46 @@ Document Q&A agent built on a corpus of manned spaceflight articles. Retrieves r
 
 ---
 
+## Prerequisites
+
+- **Node.js ≥ 20.11** — `node --version` to check.
+- **pnpm ≥ 9** — `npm install -g pnpm` if you don't have it. This repo is a pnpm workspace; `npm` / `yarn` won't resolve the cross-package links.
+- **Docker + Docker Compose** — for the Weaviate vector DB (single `docker-compose.yml` at the repo root).
+- **Two free API keys**:
+  - **Ollama Cloud** — `LLM_API_KEY` for chat, agent, and judge models. Sign up at [ollama.com](https://ollama.com) (free tier covers everything used here).
+  - **Jina AI** — `JINA_API_KEY` for embeddings + reranker. Sign up at [jina.ai](https://jina.ai) (free tier with 1M tokens is enough for a full ingest + all benchmarks).
+
 ## Quickstart
 
 ```bash
-# 1. Clone and install
+# 1. Clone & install
+git clone <repo-url> qa-agent && cd qa-agent
 pnpm install
 
 # 2. Environment
 cp .env.example .env
-# Fill in LLM_API_KEY (Ollama Cloud) and JINA_API_KEY.
+# Fill in LLM_API_KEY (Ollama Cloud) and JINA_API_KEY — everything else has sensible defaults.
 
-# 3. Start Weaviate
+# 3. Start Weaviate (Docker Compose)
 pnpm docker:up
 
 # 4. Fetch the corpus from Wikipedia into data/corpus/ (one-time, ~1 min)
 pnpm fetch-corpus
 
-# 5. Ingest the corpus (first run only; ~11 min — semantic chunking + late chunking)
+# 5. Ingest the corpus into Weaviate (first run only; ~11 min — semantic chunking + late chunking over ~50 articles)
 pnpm ingest
 
 # 6. Run API + web in parallel
 pnpm dev
 # API  → http://localhost:3001
-# Web  → http://localhost:3000
+# Web  → http://localhost:3000   (chat UI with streaming + citations + tool badges)
 
-# 7. Run the evaluation harness
+# 7. Run the evaluation harness (scores every test case end-to-end)
 pnpm evaluate
+# → results written to eval/results/<iso>.json
 ```
+
+**Tearing down** when finished: `pnpm docker:down` stops Weaviate; add `-v` to also delete the vector data (`pnpm docker:reset`).
 
 ---
 
