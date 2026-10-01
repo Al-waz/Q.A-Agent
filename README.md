@@ -192,7 +192,7 @@ Four runs were executed to measure the independent impact of tool use and query 
 
 ### Analysis
 
-Across all four runs the scores remain within a narrow band (≤0.50 on groundedness, ≤0.09 on citation accuracy), which demonstrates that the pipeline is stable and consistent regardless of configuration. The retrieval core — hybrid search and reranking — is doing the heavy lifting in every case.
+Across all four runs the scores remain within a narrow band (≤0.50 on groundedness, ≤0.04 on citation accuracy), which demonstrates that the pipeline is stable and consistent regardless of configuration. The retrieval core — hybrid search and reranking — is doing the heavy lifting in every case.
 
 The most interesting finding is that **tools and query rewriting are partially redundant for follow-up turns**. Run 4 (tools, no query rewriting) achieved G=5.00 on follow-up because the agent rewrote the ambiguous query naturally through its tool call ("Which orbiter flew its final flight?" → "which space shuttle orbiter flew the final flight of the program"), matching the result of explicit query rewriting in Run 2.
 
@@ -200,6 +200,6 @@ The only consistent weak spot across all runs is **out-of-scope refusal**: the a
 
 ### Recommendation
 
-Run 3 (`ENABLE_TOOL_USE=false`, `ENABLE_QUERY_REWRITING=false`) tied or beat every other configuration on every metric. The takeaway: for this corpus the deterministic RAG path with hybrid search + reranking is already strong enough that adding the agent loop on top is pure overhead — extra LLM round-trips, more tokens, longer latency, identical answers. **The recommended production default is `ENABLE_TOOL_USE=false`**; the agent path is kept in code and remains available behind a single env flag, in case a larger or more cross-document corpus would benefit from agentic decomposition.
+Run 3 (`ENABLE_TOOL_USE=false`, `ENABLE_QUERY_REWRITING=false`) matched or beat the other configurations on relevance and groundedness, and was slightly lower on citation accuracy (0.91 vs 0.93–0.95). The takeaway: for this corpus the deterministic RAG path with hybrid search + reranking is already strong enough that adding the agent loop on top mostly adds overhead (extra LLM round-trips, more tokens, longer latency) for little or no quality gain. **The recommended production default is `ENABLE_TOOL_USE=false`**; the agent path is kept in code and remains available behind a single env flag, in case a larger or more cross-document corpus would benefit from agentic decomposition.
 
 Raw per-turn results and judge reasoning traces in [eval/results/](eval/results/).
