@@ -15,8 +15,6 @@ Document Q&A agent built on a corpus of manned spaceflight articles. Retrieves r
 
 ## Quickstart
 
-> **Repo access** — this repository is **private**. Reviewers need to be authenticated with a GitHub account that's been granted collaborator access before `git clone` will succeed.
-
 Commands are listed one per line so they run on any shell — Git Bash, macOS/Linux, PowerShell 5.1, PowerShell 7+, cmd.
 
 ```bash
@@ -56,16 +54,16 @@ pnpm evaluate
 
 | Layer | Choice | Why |
 |---|---|---|
-| Backend | NestJS + Fastify | Spec-required. Module system maps cleanly to rubric axes. |
-| LLM SDK | Vercel AI SDK | Spec-required. `streamText` + `generateObject` + `tool()`. |
-| Language | TypeScript (strict) | Spec-required. End-to-end type safety via shared Zod schemas. |
+| Backend | NestJS + Fastify | Module system maps cleanly to the pipeline stages (retrieval, generation, evaluation). |
+| LLM SDK | Vercel AI SDK | Type-safe streaming and tool calling: `streamText` + `generateObject` + `tool()`. |
+| Language | TypeScript (strict) | End-to-end type safety via shared Zod schemas. |
 | LLM (eval / benchmark) | `gemma4:31b-cloud` via Ollama Cloud | Google's latest open model, 256K documented context, native tool-calling support. Used by the evaluation harness — this is what the committed benchmark JSONs are measuring. Configurable via `LLM_MODEL`. |
 | LLM (UI chat) | `gemini-3-flash-preview:cloud` via Ollama Cloud | 1M context. Used by the interactive chat endpoint for both the RAG and agent paths, regardless of `ENABLE_TOOL_USE`. Configurable via `AGENT_MODEL`. See [Model choices](#model-choices) below for the why. |
 | LLM (judge) | `qwen3.5:397b-cloud` via Ollama Cloud | Different family from the chat model to reduce self-bias. Low hallucination rate on factual tasks and reliable structured-output. |
 | Embedding | jina-embeddings-v4 | 2048-dim (Matryoshka-truncatable), 8K context, asymmetric `retrieval.passage` / `retrieval.query` task conditioning, native `late_chunking`. |
 | Reranker | jina-reranker-v2-base-multilingual | Cross-encoder with 1K doc context — reorders top-20 → top-5 using full query↔chunk attention instead of pooled similarity. |
 | Vector DB | Weaviate (self-hosted Docker) | Schema-first data model, native hybrid search, free forever when self-hosted. |
-| Frontend | Next.js 15 + Tailwind + shadcn/ui + custom SSE consumer hook | Spec's bonus. Custom `useChatStream` hook over the SSE protocol (rather than `@ai-sdk/react`'s `useChat`) because our event schema carries extra event types (`tool-call-start`, `retrieved`, `citations`) that don't map cleanly onto the AI SDK's Data Stream Protocol. |
+| Frontend | Next.js 15 + Tailwind + shadcn/ui + custom SSE consumer hook | Custom `useChatStream` hook over the SSE protocol (rather than `@ai-sdk/react`'s `useChat`) because our event schema carries extra event types (`tool-call-start`, `retrieved`, `citations`) that don't map cleanly onto the AI SDK's Data Stream Protocol. |
 
 ---
 
@@ -155,7 +153,7 @@ qa-agent/
 
 ### Test cases
 
-12 cases across 5 categories, each picked to stress a different axis of the pipeline rather than exercise judge-model memorization:
+12 cases (14 scored turns, since each of the two follow-up cases has two turns) across 5 categories, each picked to stress a different axis of the pipeline rather than exercise judge-model memorization:
 
 - **Factual** (4) — single-fact lookups (commander names, dates, Mercury-era recall).
 - **Multi-document** (3) — answers that require joining evidence across two articles (e.g. Armstrong bio × Gemini 8 mission).
@@ -183,7 +181,7 @@ Four runs were executed to measure the independent impact of tool use and query 
 
 **By category:**
 
-| Category | n | R (T+QR) | G (T+QR) | C (T+QR) | R (−T+QR) | G (−T+QR) | C (−T+QR) | R (−T−QR) | G (−T−QR) | C (−T−QR) | R (T−QR) | G (T−QR) | C (T−QR) |
+| Category | n (turns) | R (T+QR) | G (T+QR) | C (T+QR) | R (−T+QR) | G (−T+QR) | C (−T+QR) | R (−T−QR) | G (−T−QR) | C (−T−QR) | R (T−QR) | G (T−QR) | C (T−QR) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Factual | 4 | 4.75 | 5.00 | 1.00 | 5.00 | 5.00 | 1.00 | 5.00 | 5.00 | 1.00 | 5.00 | 5.00 | 1.00 |
 | Multi-document | 3 | 4.67 | 5.00 | 1.00 | 4.67 | 5.00 | 1.00 | 4.67 | 5.00 | 1.00 | 4.67 | 5.00 | 1.00 |
@@ -202,6 +200,6 @@ The only consistent weak spot across all runs is **out-of-scope refusal**: the a
 
 ### Recommendation
 
-Run 3 (`ENABLE_TOOL_USE=false`, `ENABLE_QUERY_REWRITING=false`) tied or beat every other configuration on every metric. The takeaway: for this corpus the deterministic RAG path with hybrid search + reranking is already strong enough that adding the agent loop on top is pure overhead — extra LLM round-trips, more tokens, longer latency, identical answers. **The recommended production default is `ENABLE_TOOL_USE=false`**; the agent path is kept in code (and demonstrated in commits) to satisfy the bonus rubric and remain available behind a single env flag if a future, larger or more cross-document corpus would benefit from agentic decomposition.
+Run 3 (`ENABLE_TOOL_USE=false`, `ENABLE_QUERY_REWRITING=false`) tied or beat every other configuration on every metric. The takeaway: for this corpus the deterministic RAG path with hybrid search + reranking is already strong enough that adding the agent loop on top is pure overhead — extra LLM round-trips, more tokens, longer latency, identical answers. **The recommended production default is `ENABLE_TOOL_USE=false`**; the agent path is kept in code and remains available behind a single env flag, in case a larger or more cross-document corpus would benefit from agentic decomposition.
 
 Raw per-turn results and judge reasoning traces in [eval/results/](eval/results/).
